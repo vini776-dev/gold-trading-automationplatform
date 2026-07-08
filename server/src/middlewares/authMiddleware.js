@@ -65,6 +65,16 @@ const protect = async (req, res, next) => {
   }
 };
 
+const { apiKeyAuth } = require('./apiKeyAuth');
+
+const authenticate = (req, res, next) => {
+  if (req.headers['x-internal-api-key']) {
+    return apiKeyAuth(req, res, next);
+  }
+  return protect(req, res, next);
+};
+
 module.exports = {
   protect,
+  authenticate,
 };

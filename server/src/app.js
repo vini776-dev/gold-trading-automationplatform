@@ -31,6 +31,17 @@ app.get('/api/v1/health', (req, res) => {
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const tradeRoutes = require('./routes/tradeRoutes');
+const settingRoutes = require('./routes/settingRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+const logRoutes = require('./routes/logRoutes');
+
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/trades', tradeRoutes);
+app.use('/api/v1/settings', settingRoutes);
+app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/logs', logRoutes);
 
 module.exports = app;

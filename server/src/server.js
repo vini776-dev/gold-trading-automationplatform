@@ -4,7 +4,7 @@ const connectDB = require('./config/db');
 
 const PORT = process.env.PORT || 5000;
 
-const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET', 'CLIENT_URL'];
+const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET', 'CLIENT_URL', 'INTERNAL_API_KEY'];
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.error(`FATAL ERROR: Missing required environment variable: ${envVar}`);
