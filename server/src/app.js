@@ -29,4 +29,8 @@ app.get('/api/v1/health', (req, res) => {
   });
 });
 
+// Routes
+const authRoutes = require('./routes/authRoutes');
+app.use('/api/v1/auth', authRoutes);
+
 module.exports = app;
