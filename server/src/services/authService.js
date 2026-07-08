@@ -7,13 +7,17 @@ const loginUser = async (email, password) => {
   const user = await User.findOne({ email }).select('+password');
 
   if (!user) {
-    throw new Error('Invalid email or password');
+    const error = new Error('Invalid email or password');
+    error.code = 'AUTH_INVALID_CREDENTIALS';
+    throw error;
   }
 
   // Check if account is temporarily locked
   if (user.lockUntil && user.lockUntil > Date.now()) {
     const remainingTime = Math.ceil((user.lockUntil - Date.now()) / 1000);
-    throw new Error(`Account is locked. Try again in ${remainingTime} seconds.`);
+    const error = new Error(`Account is locked. Try again in ${remainingTime} seconds.`);
+    error.code = 'AUTH_ACCOUNT_LOCKED';
+    throw error;
   }
 
   // Verify password
@@ -27,11 +31,15 @@ const loginUser = async (email, password) => {
     if (user.loginAttempts >= 5) {
       user.lockUntil = Date.now() + 60000; // 1 minute lock
       await user.save();
-      throw new Error('Too many failed attempts. Account locked for 1 minute.');
+      const error = new Error('Too many failed attempts. Account locked for 1 minute.');
+      error.code = 'AUTH_ACCOUNT_LOCKED';
+      throw error;
     }
 
     await user.save();
-    throw new Error('Invalid email or password');
+    const error = new Error('Invalid email or password');
+    error.code = 'AUTH_INVALID_CREDENTIALS';
+    throw error;
   }
 
   // Reset login attempts on successful login
@@ -40,11 +48,11 @@ const loginUser = async (email, password) => {
   user.lastLogin = new Date();
   await user.save();
 
-  // Generate JWT Token
+  // Generate JWT Token with HS256
   const token = jwt.sign(
     { id: user._id, role: user.role },
     process.env.JWT_SECRET,
-    { expiresIn: '24h' }
+    { algorithm: 'HS256', expiresIn: '24h' }
   );
 
   // Log successful login event

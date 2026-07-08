@@ -1,18 +1,13 @@
 const authService = require('../services/authService');
+const { COOKIE_NAME, getCookieOptions, getSessionCookieOptions } = require('../config/cookieConfig');
 
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const { user, token } = await authService.loginUser(email, password);
 
-    // Set secure cookie
-    const isProduction = process.env.NODE_ENV === 'production';
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
+    // Set secure cookie using standard config helper
+    res.cookie(COOKIE_NAME, token, getSessionCookieOptions());
 
     return res.status(200).json({
       success: true,
@@ -25,10 +20,11 @@ const login = async (req, res) => {
       },
     });
   } catch (error) {
-    const status = error.message.includes('locked') ? 423 : 401; // 423 Locked or 401 Unauthorized
+    const status = error.code === 'AUTH_ACCOUNT_LOCKED' ? 423 : 401; // 423 Locked or 401 Unauthorized
     return res.status(status).json({
       success: false,
       status: 'ERROR',
+      code: error.code || 'AUTH_INVALID_CREDENTIALS',
       message: error.message,
     });
   }
@@ -41,12 +37,8 @@ const logout = async (req, res) => {
 
     await authService.logoutUser(userId, userFullName);
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
-    });
+    // Clear cookie using standard config helper
+    res.clearCookie(COOKIE_NAME, getCookieOptions());
 
     return res.status(200).json({
       success: true,
@@ -56,6 +48,7 @@ const logout = async (req, res) => {
     return res.status(500).json({
       success: false,
       status: 'ERROR',
+      code: 'SERVER_ERROR',
       message: error.message,
     });
   }
@@ -77,6 +70,7 @@ const verify = async (req, res) => {
     return res.status(500).json({
       success: false,
       status: 'ERROR',
+      code: 'SERVER_ERROR',
       message: error.message,
     });
   }
