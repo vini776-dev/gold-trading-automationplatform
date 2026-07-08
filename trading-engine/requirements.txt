@@ -1,0 +1,6 @@
+MetaTrader5
+requests
+python-dotenv
+pandas
+pandas-ta
+numpy
