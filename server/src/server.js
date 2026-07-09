@@ -12,13 +12,19 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
+const http = require('http');
+const { initSocket } = require('./config/socket');
+
+const server = http.createServer(app);
+initSocket(server);
+
 const startServer = async () => {
   try {
     // Connect to database
     await connectDB();
 
     // Start server
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
     });
   } catch (error) {

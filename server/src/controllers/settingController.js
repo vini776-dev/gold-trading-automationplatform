@@ -1,4 +1,5 @@
 const settingService = require('../services/settingService');
+const { emitUserEvent } = require('../config/socket');
 
 const handleGetSettings = async (req, res) => {
   try {
@@ -20,6 +21,10 @@ const handleGetSettings = async (req, res) => {
 const handleUpdateSettings = async (req, res) => {
   try {
     const settings = await settingService.updateSettings(req.user._id, req.body);
+
+    // Emit Socket.IO event to frontend
+    emitUserEvent(req.user._id, 'settings_updated', settings);
+
     return res.status(200).json({
       success: true,
       message: 'Settings updated successfully',

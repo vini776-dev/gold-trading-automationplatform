@@ -1,8 +1,20 @@
 const tradeService = require('../services/tradeService');
+const { emitUserEvent } = require('../config/socket');
+const { sendTelegramNotification } = require('../services/telegramService');
 
 const handleCreateTrade = async (req, res) => {
   try {
     const { trade, created } = await tradeService.createTrade(req.user._id, req.body);
+    
+    if (created) {
+      // Emit Socket.IO event to frontend
+      emitUserEvent(req.user._id, 'trade_started', trade);
+
+      // Async Send Telegram Notification
+      const message = `🚀 [GTAP] TRADE OPENED\nTicket: ${trade.mt5Ticket}\nSymbol: ${trade.symbol}\nType: ${trade.orderType}\nLot: ${trade.lotSize}\nEntry Price: ${trade.entryPrice}\nSL: ${trade.stopLoss} | TP: ${trade.takeProfit}`;
+      sendTelegramNotification(message);
+    }
+
     const status = created ? 21 : 20; // 21 Created or 20 OK (for idempotency)
     return res.status(status).json({
       success: true,
@@ -22,6 +34,15 @@ const handleCreateTrade = async (req, res) => {
 const handleCloseTrade = async (req, res) => {
   try {
     const trade = await tradeService.closeTrade(req.params.id, req.body);
+
+    // Emit Socket.IO event to frontend
+    emitUserEvent(req.user._id, 'trade_closed', trade);
+
+    // Async Send Telegram Notification
+    const sign = trade.profitLoss >= 0 ? '+' : '';
+    const message = `✅ [GTAP] TRADE CLOSED\nTicket: ${trade.mt5Ticket}\nType: ${trade.orderType}\nExit Price: ${trade.exitPrice}\nProfit/Loss: ${sign}$${trade.profitLoss}\nReason: ${trade.closeReason}`;
+    sendTelegramNotification(message);
+
     return res.status(200).json({
       success: true,
       message: 'Trade closed successfully',
