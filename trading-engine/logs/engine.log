@@ -1,9 +1,0 @@
-2026-07-09 11:04:25,351 - GTAP_TradingEngine - INFO - Configurations loaded successfully. Dry Run: True
-2026-07-09 11:04:30,525 - GTAP_TradingEngine - INFO - Starting GTAP Python Trading Engine...
-2026-07-09 11:04:30,541 - GTAP_TradingEngine - INFO - Loaded persistent state: {'last_processed_candle_time': 0, 'last_processed_signal': None, 'engine_status': 'stopped'}
-2026-07-09 11:04:30,544 - GTAP_TradingEngine - INFO - [DRY_RUN] MT5 connection initialization bypassed.
-2026-07-09 11:04:30,544 - GTAP_TradingEngine - INFO - Performing startup recovery and synchronization checks...
-2026-07-09 11:04:34,633 - GTAP_TradingEngine - ERROR - Error calling GET /settings: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/v1/settings (Caused by NewConnectionError("HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
-2026-07-09 11:04:34,635 - GTAP_TradingEngine - ERROR - Could not fetch settings. Recovery check bypassed.
-2026-07-09 11:04:34,635 - GTAP_TradingEngine - INFO - Core scheduling loop started. Awaiting completed candles...
-2026-07-09 11:04:39,695 - GTAP_TradingEngine - ERROR - Error calling GET /settings: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/v1/settings (Caused by NewConnectionError("HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
