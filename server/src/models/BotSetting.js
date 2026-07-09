@@ -8,17 +8,9 @@ const botSettingSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    broker: {
-      type: String,
-      trim: true,
-    },
-    accountNumber: {
-      type: String,
-      trim: true,
-    },
-    server: {
-      type: String,
-      trim: true,
+    activeAccountId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'MT5Account',
     },
     symbol: {
       type: String,

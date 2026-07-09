@@ -9,5 +9,8 @@ router.use(authenticate);
 
 router.get('/', settingController.handleGetSettings);
 router.put('/', validateUpdateSettings, settingController.handleUpdateSettings);
+router.post('/detect-servers', settingController.handleDetectServers);
+router.get('/detect-terminals', settingController.handleDetectTerminals);
+router.post('/test-connection', settingController.handleTestConnection);
 
 module.exports = router;

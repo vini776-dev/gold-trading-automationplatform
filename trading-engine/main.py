@@ -43,9 +43,13 @@ def run_engine():
     state["engine_status"] = "running"
     save_state(state)
 
-    # 2. Connect to MT5 (skip if Dry Run)
+    # 2. Fetch settings on boot
+    logger.info("Fetching engine configurations from database...")
+    settings = node_client.get_settings()
+
+    # 3. Connect to MT5 (skip if Dry Run)
     if not config.DRY_RUN:
-        if not mt5_connector.initialize_mt5():
+        if not mt5_connector.initialize_mt5(settings):
             logger.critical("Failed to connect to MT5. Exiting...")
             state["engine_status"] = "failed"
             save_state(state)
@@ -54,9 +58,8 @@ def run_engine():
         logger.info("[DRY_RUN] MT5 connection initialization bypassed.")
 
     try:
-        # 3. Synchronize Active Trades on Startup (Recovery Check)
+        # 4. Synchronize Active Trades on Startup (Recovery Check)
         logger.info("Performing startup recovery and synchronization checks...")
-        settings = node_client.get_settings()
         if settings:
             active_trades = node_client.get_active_trades()
             execution.monitor_active_trades(active_trades, settings)

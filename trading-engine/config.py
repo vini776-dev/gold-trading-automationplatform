@@ -12,11 +12,9 @@ else:
 
 # Required environment variables
 REQUIRED_VARS = [
-    'MT5_LOGIN',
-    'MT5_PASSWORD',
-    'MT5_SERVER',
     'NODE_API_URL',
-    'INTERNAL_API_KEY'
+    'INTERNAL_API_KEY',
+    'ENCRYPTION_KEY'
 ]
 
 # Validation
@@ -30,7 +28,8 @@ if missing_vars:
     sys.exit(1)
 
 # Config constants
-MT5_LOGIN = int(os.getenv('MT5_LOGIN'))
+ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY')
+MT5_LOGIN = int(os.getenv('MT5_LOGIN')) if os.getenv('MT5_LOGIN') else None
 MT5_PASSWORD = os.getenv('MT5_PASSWORD')
 MT5_SERVER = os.getenv('MT5_SERVER')
 NODE_API_URL = os.getenv('NODE_API_URL').rstrip('/')

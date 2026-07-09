@@ -54,6 +54,9 @@ export const API = {
   // Settings
   getSettings: () => request('/settings', { method: 'GET' }),
   updateSettings: (settingsData) => request('/settings', { method: 'PUT', body: settingsData }),
+  detectServers: (broker) => request('/settings/detect-servers', { method: 'POST', body: { broker } }),
+  detectTerminals: () => request('/settings/detect-terminals', { method: 'GET' }),
+  testConnection: (connectionData) => request('/settings/test-connection', { method: 'POST', body: connectionData }),
 
   // Reports
   getReports: (page = 1, limit = 20) => request(`/reports?page=${page}&limit=${limit}`, { method: 'GET' }),
