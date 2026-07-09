@@ -14,10 +14,16 @@ def execute_order(signal, settings):
     sl_buffer = settings.get('stopLossBuffer', 0.02)
 
     # 1. Fetch Current Market Prices
-    symbol_info = mt5.symbol_info_tick(symbol)
-    if not symbol_info:
-        logger.error(f"Failed to get symbol tick info for {symbol}")
-        return None
+    if config.DRY_RUN:
+        class MockSymbolInfo:
+            bid = 2000.0
+            ask = 2000.5
+        symbol_info = MockSymbolInfo()
+    else:
+        symbol_info = mt5.symbol_info_tick(symbol)
+        if not symbol_info:
+            logger.error(f"Failed to get symbol tick info for {symbol}")
+            return None
 
     if signal == "BUY":
         price = symbol_info.ask
@@ -95,8 +101,27 @@ def monitor_active_trades(active_trades, settings):
     if not active_trades:
         return
 
-    # In DRY_RUN mode, we don't fetch actual MT5 positions
+    # In DRY_RUN mode, simulate trade exits (SL/TP hit) randomly
     if config.DRY_RUN:
+        import random
+        for trade in active_trades:
+            # 20% chance to close trade per check cycle
+            if random.random() < 0.20:
+                ticket = trade.get('mt5Ticket')
+                trade_db_id = trade.get('_id')
+                is_profit = random.choice([True, False])
+                pnl = random.uniform(10.0, 50.0) if is_profit else random.uniform(-10.0, -30.0)
+                reason = "TP" if is_profit else "SL"
+                
+                logger.info(f"[DRY_RUN] Mock closing trade {ticket} via {reason}. PnL: ${pnl:.2f}")
+                close_payload = {
+                    "exitPrice": trade.get('entryPrice') + (pnl / 100.0),
+                    "closeTime": new_date_iso(),
+                    "profitLoss": pnl,
+                    "closeReason": reason,
+                    "duration": int(random.uniform(60, 300))
+                }
+                node_client.close_trade(trade_db_id, close_payload)
         return
 
     # Fetch all open positions on MT5

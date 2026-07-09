@@ -1,5 +1,6 @@
 const Trade = require('../models/Trade');
 const BotSetting = require('../models/BotSetting');
+const reportService = require('./reportService');
 
 const createTrade = async (userId, tradeData) => {
   const { mt5Ticket } = tradeData;
@@ -48,10 +49,6 @@ const closeTrade = async (tradeId, closeData) => {
   const duration = Math.max(0, Math.ceil((closeTimeMs - openTimeMs) / 1000));
 
   // Calculate profit/loss
-  // Note: Standard formula for currency pairs depends on lots. Here we assume 1 lot of XAUUSD is 100 ounces.
-  // Standard PnL calculation: (Exit Price - Entry Price) * Lot Size * contractSize (100 for XAUUSD)
-  // For BUY: (Exit - Entry) * Lot * 100
-  // For SELL: (Entry - Exit) * Lot * 100
   const contractSize = 100;
   const priceDiff = trade.orderType === 'BUY' ? (exitPrice - trade.entryPrice) : (trade.entryPrice - exitPrice);
   const profitLoss = parseFloat((priceDiff * trade.lotSize * contractSize).toFixed(2));
@@ -64,6 +61,10 @@ const closeTrade = async (tradeId, closeData) => {
   trade.status = 'CLOSED';
 
   await trade.save();
+
+  // Dynamically update user daily performance report
+  await reportService.updateDailyReport(trade.userId, closeTime);
+
   return trade;
 };
 

@@ -15,7 +15,7 @@ const handleCreateTrade = async (req, res) => {
       sendTelegramNotification(message);
     }
 
-    const status = created ? 21 : 20; // 21 Created or 20 OK (for idempotency)
+    const status = created ? 201 : 200; // 201 Created or 200 OK (for idempotency)
     return res.status(status).json({
       success: true,
       message: created ? 'Trade registered successfully' : 'Trade already registered',

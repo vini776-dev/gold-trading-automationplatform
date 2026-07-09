@@ -153,20 +153,33 @@ def run_engine():
         logger.info("GTAP Trading Engine shutdown complete.")
 
 def mock_rates(symbol):
-    # Generates standard mock candles for dry run
+    import random
     current_time = int(time.time() // 60) * 60
     rates = []
-    # Fill 100 candles
+    
+    # Consistent mock price start
+    price = 2000.0
+    random.seed(current_time) # Seed with current time to get dynamic shifts per minute
+    
     for i in range(100):
         t = current_time - (100 - i) * 60
+        # Fluctuating candle generation
+        change = random.uniform(-1.0, 1.0)
+        open_val = price
+        close_val = price + change
+        high_val = max(open_val, close_val) + random.uniform(0.1, 0.5)
+        low_val = min(open_val, close_val) - random.uniform(0.1, 0.5)
+        
         rates.append({
             "time": t,
-            "open": 2000.0 + i * 0.1,
-            "high": 2001.0 + i * 0.1,
-            "low": 1999.0 + i * 0.1,
-            "close": 2000.5 + i * 0.1,
+            "open": open_val,
+            "high": high_val,
+            "low": low_val,
+            "close": close_val,
             "volume": 10
         })
+        price = close_val
+        
     return rates
 
 if __name__ == "__main__":
