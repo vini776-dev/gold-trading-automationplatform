@@ -7,7 +7,7 @@ export const SocketClient = {
     if (SocketClient.socket) return;
 
     // Connect to secured namespace /trader
-    const socket = io('http://localhost:5000/trader', {
+    const socket = io(`http://${window.location.hostname}:5000/trader`, {
       withCredentials: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
