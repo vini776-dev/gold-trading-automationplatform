@@ -1,4 +1,5 @@
-require('dotenv').config({ path: '../../.env' }); // Adjust path as needed based on where it's run from
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const User = require('../models/User');
