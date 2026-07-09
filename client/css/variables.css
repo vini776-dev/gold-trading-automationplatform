@@ -1,0 +1,33 @@
+:root {
+  --color-bg-primary: #0f172a;    /* Slate 900 */
+  --color-bg-secondary: #1e293b;  /* Slate 800 */
+  --color-border: #334155;        /* Slate 700 */
+  --color-text-primary: #f8fafc;  /* Slate 50 */
+  --color-text-secondary: #94a3b8;/* Slate 400 */
+  --color-primary: #3b82f6;       /* Blue 500 */
+  --color-primary-hover: #2563eb; /* Blue 600 */
+  --color-success: #10b981;       /* Emerald 500 */
+  --color-danger: #ef4444;        /* Red 500 */
+  --color-warning: #f59e0b;       /* Amber 500 */
+  --color-shadow: rgba(0, 0, 0, 0.3);
+  --color-shimmer: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+
+  --font-family: 'Poppins', sans-serif;
+  --border-radius: 12px;
+  --transition-speed: 0.3s;
+}
+
+[data-theme="light"] {
+  --color-bg-primary: #f8fafc;    /* Slate 50 */
+  --color-bg-secondary: #ffffff;  /* White */
+  --color-border: #e2e8f0;        /* Slate 200 */
+  --color-text-primary: #0f172a;  /* Slate 900 */
+  --color-text-secondary: #64748b;/* Slate 500 */
+  --color-primary: #3b82f6;       /* Blue 500 */
+  --color-primary-hover: #2563eb;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-shadow: rgba(0, 0, 0, 0.05);
+  --color-shimmer: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+}
