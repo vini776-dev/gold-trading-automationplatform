@@ -194,12 +194,41 @@ export const SettingsPage = {
     const renderServerField = (servers, selected) => {
       const container = document.getElementById('server-field-container');
       if (servers && servers.length > 0) {
+        const isCustomSelected = selected && !servers.includes(selected);
+        
         let options = servers.map(s => `<option value="${s}" ${s === selected ? 'selected' : ''}>${s}</option>`).join('');
+        options += `<option value="__custom__" ${isCustomSelected ? 'selected' : ''}>Enter Server Manually...</option>`;
+        
         container.innerHTML = `
-          <select id="settings-server" style="width: 100%;">
+          <select id="settings-server-select" style="width: 100%; margin-bottom: 0.5rem;">
             ${options}
           </select>
+          <div id="custom-server-input-container" style="display: ${isCustomSelected ? 'block' : 'none'};">
+            <input type="text" id="settings-server-custom" placeholder="e.g. XMGlobal-MT5 6" value="${isCustomSelected ? selected : ''}" style="width: 100%;">
+          </div>
+          <input type="hidden" id="settings-server" value="${selected || servers[0]}">
         `;
+
+        const selectEl = document.getElementById('settings-server-select');
+        const customContainer = document.getElementById('custom-server-input-container');
+        const customInput = document.getElementById('settings-server-custom');
+        const hiddenEl = document.getElementById('settings-server');
+
+        selectEl.addEventListener('change', () => {
+          if (selectEl.value === '__custom__') {
+            customContainer.style.display = 'block';
+            hiddenEl.value = customInput.value;
+          } else {
+            customContainer.style.display = 'none';
+            hiddenEl.value = selectEl.value;
+          }
+          invalidateTestState();
+        });
+
+        customInput.addEventListener('input', () => {
+          hiddenEl.value = customInput.value;
+          invalidateTestState();
+        });
       } else {
         container.innerHTML = `
           <input type="text" id="settings-server" placeholder="XMGlobal-MT5" value="${selected || ''}">
@@ -207,12 +236,9 @@ export const SettingsPage = {
             No predefined servers found. You can manually enter your MT5 server.
           </small>
         `;
+        const serverField = document.getElementById('settings-server');
+        serverField.addEventListener('input', invalidateTestState);
       }
-
-      // Bind change/input event to newly created server input/select
-      const serverField = document.getElementById('settings-server');
-      serverField.addEventListener('input', invalidateTestState);
-      serverField.addEventListener('change', invalidateTestState);
     };
 
     // Invalidate validated state on any credential inputs change
@@ -285,7 +311,8 @@ export const SettingsPage = {
     }
 
     // 3. Test Connection
-    testBtn.addEventListener('click', async () => {
+    testBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
       const broker = brokerInput.value;
       const accountNumber = accountInput.value;
       const mt5Password = passwordInput.value;

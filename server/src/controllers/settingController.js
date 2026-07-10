@@ -51,7 +51,7 @@ const handleDetectServers = async (req, res) => {
     }
 
     const registry = {
-      'xm': ['XMGlobal-MT5 2', 'XMGlobal-MT5 5', 'XMGlobal-Real 1'],
+      'xm': ['XMGlobal-MT5', 'XMGlobal-MT5 2', 'XMGlobal-MT5 3', 'XMGlobal-MT5 4', 'XMGlobal-MT5 5', 'XMGlobal-MT5 6', 'XMGlobal-Real 1'],
       'exness': ['Exness-MT5Trial', 'Exness-MT5Real'],
       'ic markets': ['ICMarketsSC-Demo', 'ICMarketsSC-Live'],
       'icmarkets': ['ICMarketsSC-Demo', 'ICMarketsSC-Live']
@@ -256,6 +256,8 @@ mt5.shutdown()
     }
 
     const MT5Account = require('../models/MT5Account');
+    const BotSetting = require('../models/BotSetting');
+
     let account = await MT5Account.findOne({ userId: req.user._id, isDefault: true });
     if (!account) {
       account = new MT5Account({ userId: req.user._id, isDefault: true });
@@ -275,6 +277,14 @@ mt5.shutdown()
     }
 
     await account.save();
+
+    // Link account to settings on test (so state is preserved if page reloads before full save)
+    let settings = await BotSetting.findOne({ userId: req.user._id });
+    if (!settings) {
+      settings = new BotSetting({ userId: req.user._id });
+    }
+    settings.activeAccountId = account._id;
+    await settings.save();
 
     return res.status(200).json({
       success: true,
