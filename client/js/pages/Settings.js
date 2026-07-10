@@ -246,8 +246,9 @@ export const SettingsPage = {
       });
 
       // 2. Fetch current settings from database
-      const settings = await API.getSettings();
-      if (settings) {
+      const settingsResponse = await API.getSettings();
+      if (settingsResponse && settingsResponse.success) {
+        const settings = settingsResponse.data;
         window.Store.settings = settings;
 
         // Populate fields
