@@ -36,7 +36,9 @@ export const SocketClient = {
       
       // Display alert and refresh current view if needed
       APP.showToast(`New Trade Executed: ${newTrade.orderType} ${newTrade.symbol}`, 'success');
-      APP.refreshCurrentPage();
+      if (!window.location.hash.includes('settings')) {
+        APP.refreshCurrentPage();
+      }
     });
 
     // 2. Listen for trade closures
@@ -51,14 +53,18 @@ export const SocketClient = {
       window.Store.dashboard.activeTradesCount = Math.max(0, window.Store.dashboard.activeTradesCount - 1);
       
       APP.showToast(`Trade Closed: ${closedTrade.closeReason} hit! PnL: $${closedTrade.profitLoss}`, closedTrade.profitLoss >= 0 ? 'success' : 'error');
-      APP.refreshCurrentPage();
+      if (!window.location.hash.includes('settings')) {
+        APP.refreshCurrentPage();
+      }
     });
 
     // 3. Listen for setting updates
     socket.on('settings_updated', (payload) => {
       console.log('Socket event [settings_updated]:', payload);
       window.Store.settings = payload.data;
-      APP.refreshCurrentPage();
+      if (!window.location.hash.includes('settings')) {
+        APP.refreshCurrentPage();
+      }
     });
 
     // 4. Listen for engine heartbeat updates
