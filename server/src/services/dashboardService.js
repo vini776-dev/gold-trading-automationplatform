@@ -1,5 +1,6 @@
 const Trade = require('../models/Trade');
 const Report = require('../models/Report');
+const MT5Account = require('../models/MT5Account');
 
 const getDashboardSummary = async (userId) => {
   // Count active open trades in DB
@@ -8,10 +9,13 @@ const getDashboardSummary = async (userId) => {
   // Get the latest performance report for this user in DB
   const latestReport = await Report.findOne({ userId }).sort({ reportDate: -1 });
 
+  // Get active MT5 account info for real-time balance and equity
+  const account = await MT5Account.findOne({ userId, isDefault: true });
+
   // Default values if no reports exist in MongoDB yet
   const summary = {
-    balance: latestReport ? latestReport.netProfit + 10000 : 10000.0, // Assuming 10k initial balance
-    equity: latestReport ? latestReport.netProfit + 10000 : 10000.0,
+    balance: account ? account.balance : 0.0,
+    equity: account ? account.equity : 0.0,
     dailyProfit: 0.0,
     winRate: latestReport ? latestReport.winRate : 0.0,
     activeTradesCount,

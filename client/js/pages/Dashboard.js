@@ -104,21 +104,23 @@ export const DashboardPage = {
       const reportsRes = await API.getReports(1, 10);
       let labels = [];
       let dataPoints = [];
-
       if (reportsRes && reportsRes.success && reportsRes.data.length > 0) {
-        // Reverse array to show chronological timeline order
         const list = [...reportsRes.data].reverse();
         labels = list.map((item) => new Date(item.reportDate).toLocaleDateString());
-        // Calculate cumulative equity points starting from 10,000.00
-        let cumulative = 10000.00;
+        
+        // Sum total net profit from the list to determine starting balance
+        const totalNetProfit = list.reduce((sum, item) => sum + item.netProfit, 0);
+        let cumulative = (window.Store.dashboard?.balance || 0.0) - totalNetProfit;
+        
         dataPoints = list.map((item) => {
           cumulative += item.netProfit;
           return cumulative;
         });
       } else {
-        // Mock fallback placeholders for initial display
-        labels = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'];
-        dataPoints = [10000.0, 10050.0, 10020.0, 10150.0, 10250.0];
+        // If no trading reports exist yet, show a flat line of their current balance
+        const currentBalance = window.Store.dashboard?.balance || 0.0;
+        labels = ['Initial', 'Current'];
+        dataPoints = [currentBalance, currentBalance];
       }
 
       // 4. Render Chart.js Line Graph

@@ -300,10 +300,41 @@ mt5.shutdown()
   }
 };
 
+const handleUpdateAccountMetrics = async (req, res) => {
+  try {
+    const { balance, equity, marginFree } = req.body;
+
+    const MT5Account = require('../models/MT5Account');
+    let account = await MT5Account.findOne({ userId: req.user._id, isDefault: true });
+    if (!account) {
+      return res.status(404).json({ success: false, message: 'Default MT5 account not found' });
+    }
+
+    if (balance !== undefined) account.balance = balance;
+    if (equity !== undefined) account.equity = equity;
+    if (marginFree !== undefined) account.marginFree = marginFree;
+
+    await account.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Account metrics updated successfully',
+      data: {
+        balance: account.balance,
+        equity: account.equity,
+        marginFree: account.marginFree
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   handleGetSettings,
   handleUpdateSettings,
   handleDetectServers,
   handleDetectTerminals,
-  handleTestConnection
+  handleTestConnection,
+  handleUpdateAccountMetrics
 };

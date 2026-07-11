@@ -51,3 +51,19 @@ def close_trade(trade_db_id, close_data):
     except Exception as e:
         logger.error(f"Error calling PUT /trades/:id/close: {e}")
     return None
+
+def update_account_metrics(balance, equity, margin_free):
+    url = f"{config.NODE_API_URL}/settings/account-metrics"
+    try:
+        payload = {
+            "balance": balance,
+            "equity": equity,
+            "marginFree": margin_free
+        }
+        response = requests.post(url, headers=HEADERS, json=payload, timeout=10)
+        if response.status_code == 200:
+            return response.json().get('data')
+        logger.error(f"Failed to update account metrics on Node: {response.status_code} - {response.text}")
+    except Exception as e:
+        logger.error(f"Error calling POST /settings/account-metrics: {e}")
+    return None

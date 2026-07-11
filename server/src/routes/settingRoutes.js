@@ -12,5 +12,6 @@ router.put('/', validateUpdateSettings, settingController.handleUpdateSettings);
 router.post('/detect-servers', settingController.handleDetectServers);
 router.get('/detect-terminals', settingController.handleDetectTerminals);
 router.post('/test-connection', settingController.handleTestConnection);
+router.post('/account-metrics', settingController.handleUpdateAccountMetrics);
 
 module.exports = router;

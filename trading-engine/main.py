@@ -78,6 +78,17 @@ def run_engine():
             if not settings:
                 continue
 
+            # Sync real-time account metrics from MT5 to Node (if live mode)
+            if not config.DRY_RUN:
+                import MetaTrader5 as mt5
+                info = mt5.account_info()
+                if info:
+                    node_client.update_account_metrics(
+                        balance=getattr(info, 'balance', 0.0),
+                        equity=getattr(info, 'equity', 0.0),
+                        margin_free=getattr(info, 'margin_free', 0.0)
+                    )
+
             # Check if auto trading is toggled off
             if not settings.get('isAutoTrading', False):
                 logger.info("Auto trading is disabled in settings. Skipping checks...")
