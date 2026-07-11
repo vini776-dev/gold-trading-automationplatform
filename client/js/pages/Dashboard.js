@@ -1,8 +1,51 @@
 import { API } from '../api.js';
+import { APP } from '../app.js';
 
 export const DashboardPage = {
   render: () => {
     return `
+      <!-- Trading Control Panel -->
+      <div class="card" id="control-panel-container" style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem;">
+        <!-- Top Row: Title, Badge, and Buttons -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div style="display: flex; align-items: center; gap: 1rem;">
+            <h3 style="margin: 0; font-weight: 600;">Trading Control Panel</h3>
+            <span id="engine-state-badge" class="badge" style="font-size: 0.9rem; padding: 0.35rem 0.75rem; border-radius: 4px; font-weight: 600; text-transform: uppercase;">OFFLINE</span>
+          </div>
+          
+          <!-- Control Buttons -->
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button id="btn-engine-start" class="btn" style="background-color: #2ecc71; color: white; padding: 0.5rem 1rem; font-weight: 600; border-radius: 4px; display: flex; align-items: center; gap: 0.5rem; border: none; cursor: pointer;">
+              <i class="fa-solid fa-play"></i> Start
+            </button>
+            <button id="btn-engine-pause" class="btn" style="background-color: #f1c40f; color: white; padding: 0.5rem 1rem; font-weight: 600; border-radius: 4px; display: flex; align-items: center; gap: 0.5rem; border: none; cursor: pointer;">
+              <i class="fa-solid fa-pause"></i> Pause
+            </button>
+            <button id="btn-engine-stop" class="btn" style="background-color: #7f8c8d; color: white; padding: 0.5rem 1rem; font-weight: 600; border-radius: 4px; display: flex; align-items: center; gap: 0.5rem; border: none; cursor: pointer;">
+              <i class="fa-solid fa-stop"></i> Stop
+            </button>
+            <button id="btn-engine-restart" class="btn" style="background-color: #3498db; color: white; padding: 0.5rem 1rem; font-weight: 600; border-radius: 4px; display: flex; align-items: center; gap: 0.5rem; border: none; cursor: pointer;">
+              <i class="fa-solid fa-rotate"></i> Restart
+            </button>
+            <button id="btn-engine-emergency" class="btn" style="background-color: #e74c3c; color: white; padding: 0.5rem 1.25rem; font-weight: 700; border-radius: 4px; display: flex; align-items: center; gap: 0.5rem; border: none; cursor: pointer; box-shadow: 0 0 12px rgba(231, 76, 60, 0.4);">
+              🛑 Emergency Stop
+            </button>
+          </div>
+        </div>
+
+        <!-- Telemetry Statistics Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding-top: 1.25rem; border-top: 1px solid var(--color-border); font-size: 0.9rem;">
+          <div><strong style="color: var(--color-text-muted);">Strategy:</strong> <span id="stat-strategy">RSI-EMA Cross</span></div>
+          <div><strong style="color: var(--color-text-muted);">Broker:</strong> <span id="stat-broker">-</span></div>
+          <div><strong style="color: var(--color-text-muted);">Account:</strong> <span id="stat-account">-</span></div>
+          <div><strong style="color: var(--color-text-muted);">Server:</strong> <span id="stat-server">-</span></div>
+          <div><strong style="color: var(--color-text-muted);">Symbol:</strong> <span id="stat-symbol">-</span></div>
+          <div><strong style="color: var(--color-text-muted);">Open Positions:</strong> <span id="stat-positions">-</span></div>
+          <div><strong style="color: var(--color-text-muted);">Running Time:</strong> <span id="stat-runtime">00:00:00</span></div>
+          <div><strong style="color: var(--color-text-muted);">Last Heartbeat:</strong> <span id="stat-heartbeat">-</span></div>
+        </div>
+      </div>
+
       <!-- Metric Cards Grid -->
       <div class="metric-grid">
         <div class="stat-card" id="card-balance">
@@ -60,8 +103,180 @@ export const DashboardPage = {
   },
 
   onMount: async () => {
+    const btnStart = document.getElementById('btn-engine-start');
+    const btnPause = document.getElementById('btn-engine-pause');
+    const btnStop = document.getElementById('btn-engine-stop');
+    const btnRestart = document.getElementById('btn-engine-restart');
+    const btnEmergency = document.getElementById('btn-engine-emergency');
+    const stateBadge = document.getElementById('engine-state-badge');
+
+    // Helper to format runtime seconds
+    const formatRuntime = (seconds) => {
+      if (!seconds || seconds <= 0) return '00:00:00';
+      const hrs = Math.floor(seconds / 3600).toString().padStart(2, '0');
+      const mins = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+      const secs = (seconds % 60).toString().padStart(2, '0');
+      return `${hrs}:${mins}:${secs}`;
+    };
+
+    // Helper to style engine status badge dynamically
+    const updateStateBadge = (state) => {
+      if (!stateBadge) return;
+      stateBadge.textContent = state;
+      stateBadge.style.color = '#fff';
+      
+      if (state === 'RUNNING') {
+        stateBadge.style.backgroundColor = '#2ecc71';
+      } else if (state === 'MONITORING') {
+        stateBadge.style.backgroundColor = '#1abc9c';
+      } else if (state === 'PAUSED') {
+        stateBadge.style.backgroundColor = '#f1c40f';
+      } else if (state === 'STARTING' || state === 'STOPPING') {
+        stateBadge.style.backgroundColor = '#f39c12';
+      } else if (state === 'ERROR') {
+        stateBadge.style.backgroundColor = '#e74c3c';
+      } else {
+        stateBadge.style.backgroundColor = '#7f8c8d';
+      }
+    };
+
+    // Enable/disable buttons based on engine state
+    const updateButtonStates = (state) => {
+      if (!btnStart) return;
+
+      if (state === 'OFFLINE' || state === 'ERROR') {
+        btnStart.disabled = false;
+        btnPause.disabled = true;
+        btnStop.disabled = true;
+        btnRestart.disabled = true;
+        btnEmergency.disabled = true;
+      } else if (state === 'RUNNING' || state === 'MONITORING') {
+        btnStart.disabled = true;
+        btnPause.disabled = false;
+        btnStop.disabled = false;
+        btnRestart.disabled = false;
+        btnEmergency.disabled = false;
+      } else if (state === 'PAUSED') {
+        btnStart.disabled = false; // Re-start or Resume
+        btnPause.disabled = true;
+        btnStop.disabled = false;
+        btnRestart.disabled = false;
+        btnEmergency.disabled = false;
+      } else if (state === 'STARTING' || state === 'STOPPING') {
+        btnStart.disabled = true;
+        btnPause.disabled = true;
+        btnStop.disabled = true;
+        btnRestart.disabled = true;
+        btnEmergency.disabled = true;
+      }
+    };
+
+    // Global hook for live WebSocket telemetry broadcasts
+    window.updateDashboardControlPanel = (statusData) => {
+      const badge = document.getElementById('engine-state-badge');
+      if (!badge) {
+        // Clean up hook if we moved to another page
+        window.updateDashboardControlPanel = null;
+        return;
+      }
+
+      // Update state badge & actions
+      const state = statusData.engineState || 'OFFLINE';
+      updateStateBadge(state);
+      updateButtonStates(state);
+
+      // Update metrics
+      const metrics = statusData.metrics || {};
+      document.getElementById('stat-strategy').textContent = metrics.strategyName || 'RSI-EMA Cross';
+      document.getElementById('stat-broker').textContent = metrics.connectedBroker || '-';
+      document.getElementById('stat-account').textContent = metrics.connectedAccount || '-';
+      document.getElementById('stat-server').textContent = metrics.connectedServer || '-';
+      document.getElementById('stat-symbol').textContent = metrics.currentSymbol || '-';
+      document.getElementById('stat-positions').textContent = metrics.openPositionsCount !== undefined ? metrics.openPositionsCount : '-';
+      document.getElementById('stat-runtime').textContent = formatRuntime(metrics.runningTime);
+      
+      const hb = statusData.lastHeartbeat;
+      document.getElementById('stat-heartbeat').textContent = hb ? new Date(hb).toLocaleTimeString() : '-';
+    };
+
+    // 1. Initial State UI Load
+    if (window.Store.engineStatus) {
+      window.updateDashboardControlPanel(window.Store.engineStatus);
+    } else {
+      updateStateBadge('OFFLINE');
+      updateButtonStates('OFFLINE');
+    }
+
+    // Bind Action Listeners
+    btnStart.addEventListener('click', async () => {
+      try {
+        btnStart.disabled = true;
+        const res = await API.startEngine();
+        if (res.success) {
+          APP.showToast('Engine Start command issued successfully.', 'success');
+        }
+      } catch (err) {
+        APP.showToast(err.message || 'Failed to start engine.', 'error');
+        btnStart.disabled = false;
+      }
+    });
+
+    btnPause.addEventListener('click', async () => {
+      try {
+        btnPause.disabled = true;
+        const res = await API.pauseEngine();
+        if (res.success) {
+          APP.showToast('Engine Pause command issued successfully.', 'success');
+        }
+      } catch (err) {
+        APP.showToast(err.message || 'Failed to pause engine.', 'error');
+        btnPause.disabled = false;
+      }
+    });
+
+    btnStop.addEventListener('click', async () => {
+      try {
+        btnStop.disabled = true;
+        const res = await API.stopEngine();
+        if (res.success) {
+          APP.showToast('Engine Stop command issued successfully.', 'success');
+        }
+      } catch (err) {
+        APP.showToast(err.message || 'Failed to stop engine.', 'error');
+        btnStop.disabled = false;
+      }
+    });
+
+    btnRestart.addEventListener('click', async () => {
+      try {
+        btnRestart.disabled = true;
+        const res = await API.restartEngine();
+        if (res.success) {
+          APP.showToast('Engine Restart command issued successfully.', 'success');
+        }
+      } catch (err) {
+        APP.showToast(err.message || 'Failed to restart engine.', 'error');
+        btnRestart.disabled = false;
+      }
+    });
+
+    btnEmergency.addEventListener('click', async () => {
+      if (confirm('🚨 WARNING: Are you sure you want to trigger EMERGENCY STOP? This will instantly cancel any pending orders and stop strategy execution.')) {
+        try {
+          btnEmergency.disabled = true;
+          const res = await API.emergencyStop();
+          if (res.success) {
+            APP.showToast('🚨 EMERGENCY STOP triggered successfully.', 'success');
+          }
+        } catch (err) {
+          APP.showToast(err.message || 'Failed to trigger emergency stop.', 'error');
+          btnEmergency.disabled = false;
+        }
+      }
+    });
+
+    // 2. Fetch Dashboard metrics
     try {
-      // 1. Fetch Dashboard metrics
       const summaryRes = await API.getSummary();
       if (summaryRes && summaryRes.success) {
         const metrics = summaryRes.data;
@@ -78,7 +293,7 @@ export const DashboardPage = {
         document.getElementById('card-winrate').innerHTML = `<h3>Win Rate</h3><div class="value">${metrics.winRate.toFixed(1)}%</div>`;
       }
 
-      // 2. Fetch Active Trades
+      // 3. Fetch Active Trades
       const activeRes = await API.getActiveTrades();
       if (activeRes && activeRes.success) {
         const trades = activeRes.data;
@@ -100,10 +315,11 @@ export const DashboardPage = {
         }
       }
 
-      // 3. Fetch Reports (for charting)
+      // 4. Fetch Reports (for charting)
       const reportsRes = await API.getReports(1, 10);
       let labels = [];
       let dataPoints = [];
+
       if (reportsRes && reportsRes.success && reportsRes.data.length > 0) {
         const list = [...reportsRes.data].reverse();
         labels = list.map((item) => new Date(item.reportDate).toLocaleDateString());
@@ -123,7 +339,7 @@ export const DashboardPage = {
         dataPoints = [currentBalance, currentBalance];
       }
 
-      // 4. Render Chart.js Line Graph
+      // 5. Render Chart.js Line Graph
       const ctx = document.getElementById('equity-chart');
       if (ctx) {
         new Chart(ctx, {

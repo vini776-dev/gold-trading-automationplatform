@@ -87,6 +87,11 @@ export const SocketClient = {
           statusText.style.color = 'var(--color-text-secondary)';
         }
       }
+
+      // Live reactive UI update if dashboard is loaded
+      if (typeof window.updateDashboardControlPanel === 'function') {
+        window.updateDashboardControlPanel(statusData);
+      }
     });
   },
 

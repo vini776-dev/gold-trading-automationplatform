@@ -67,3 +67,19 @@ def update_account_metrics(balance, equity, margin_free):
     except Exception as e:
         logger.error(f"Error calling POST /settings/account-metrics: {e}")
     return None
+
+def send_heartbeat(state, metrics=None, processed_command=None):
+    url = f"{config.NODE_API_URL}/engine/heartbeat"
+    try:
+        payload = {
+            "state": state,
+            "metrics": metrics,
+            "processedCommand": processed_command
+        }
+        response = requests.post(url, headers=HEADERS, json=payload, timeout=10)
+        if response.status_code == 200:
+            return response.json().get('data')
+        logger.error(f"Heartbeat call failed: {response.status_code} - {response.text}")
+    except Exception as e:
+        logger.error(f"Error calling POST /engine/heartbeat: {e}")
+    return None

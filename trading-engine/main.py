@@ -21,11 +21,9 @@ def load_state():
         except Exception as e:
             logger.error(f"Failed to read state.json: {e}")
     
-    # Return default state
     return {
         "last_processed_candle_time": 0,
-        "last_processed_signal": None,
-        "engine_status": "stopped"
+        "last_processed_signal": None
     }
 
 def save_state(state):
@@ -36,90 +34,224 @@ def save_state(state):
         logger.error(f"Failed to write state.json: {e}")
 
 def run_engine():
-    logger.info("Starting GTAP Python Trading Engine...")
+    logger.info("Initializing GTAP Python Trading Engine...")
     
     # 1. Load configuration and state
     state = load_state()
-    state["engine_status"] = "running"
-    save_state(state)
-
-    # 2. Fetch settings on boot
-    logger.info("Fetching engine configurations from database...")
+    
+    # 2. Get initial settings to restore previous session state (Session Recovery)
     settings = node_client.get_settings()
-
-    # 3. Connect to MT5 (skip if Dry Run)
-    if not config.DRY_RUN:
-        if not mt5_connector.initialize_mt5(settings):
-            logger.critical("Failed to connect to MT5. Exiting...")
-            state["engine_status"] = "failed"
-            save_state(state)
-            return
+    if settings:
+        initial_state = settings.get('engineState', 'OFFLINE')
+        logger.info(f"Restoring previous engine state from database: {initial_state}")
+        current_state = initial_state
     else:
-        logger.info("[DRY_RUN] MT5 connection initialization bypassed.")
+        logger.warning("Could not fetch configurations from database. Defaulting to OFFLINE state.")
+        current_state = 'OFFLINE'
 
-    try:
-        # 4. Synchronize Active Trades on Startup (Recovery Check)
-        logger.info("Performing startup recovery and synchronization checks...")
-        if settings:
+    # If restored state is active, initialize MT5 connection
+    if current_state in ['RUNNING', 'MONITORING', 'PAUSED']:
+        if not config.DRY_RUN:
+            if not mt5_connector.initialize_mt5(settings):
+                logger.error("Failed to restore MT5 connection. Setting state to ERROR.")
+                current_state = 'ERROR'
+        else:
+            logger.info("[DRY_RUN] MT5 connection restored (bypassed).")
+
+        # Sync open positions
+        try:
             active_trades = node_client.get_active_trades()
             execution.monitor_active_trades(active_trades, settings)
-        else:
-            logger.error("Could not fetch settings. Recovery check bypassed.")
-
-        # 4. Core Execution Loop
-        logger.info("Core scheduling loop started. Awaiting completed candles...")
-        
-        while True:
-            # Sleep 1 second to handle scheduling tick
-            time.sleep(1)
+        except Exception as e:
+            logger.error(f"Failed to sync active trades on recovery: {e}")
             
-            # Fetch latest settings periodically to monitor configurations
+    running_since = time.time() if current_state in ['RUNNING', 'MONITORING'] else None
+    processed_command = 'NONE'
+
+    logger.info(f"Engine is now {current_state}. Entering control loop...")
+
+    while True:
+        try:
+            # 1 second loop ticks
+            time.sleep(1)
+
+            # Get latest settings & check for commands from database
             settings = node_client.get_settings()
             if not settings:
                 continue
 
-            # Sync real-time account metrics from MT5 to Node (if live mode)
-            if not config.DRY_RUN:
-                import MetaTrader5 as mt5
-                info = mt5.account_info()
-                if info:
-                    node_client.update_account_metrics(
-                        balance=getattr(info, 'balance', 0.0),
-                        equity=getattr(info, 'equity', 0.0),
-                        margin_free=getattr(info, 'margin_free', 0.0)
-                    )
+            received_command = settings.get('engineCommand', 'NONE')
+            
+            # 2. Handle state transitions from commands
+            if received_command != 'NONE' and received_command != processed_command:
+                logger.info(f"Received command from dashboard: {received_command}")
+                
+                if received_command == 'START':
+                    current_state = 'STARTING'
+                    validation_error = None
+                    
+                    # SAFETY CHECK 1: MT5 Connection & Credentials (Refuse start if failed)
+                    if not config.DRY_RUN:
+                        if not mt5_connector.initialize_mt5(settings):
+                            validation_error = "MT5 terminal login failed."
+                        else:
+                            # SAFETY CHECK 2: Symbol availability check
+                            symbol = settings.get('symbol', 'XAUUSD')
+                            symbol_info = mt5.symbol_info(symbol)
+                            if symbol_info is None:
+                                validation_error = f"Symbol {symbol} not found on broker."
+                            else:
+                                if not symbol_info.visible:
+                                    if not mt5.symbol_select(symbol, True):
+                                        validation_error = f"Symbol {symbol} cannot be selected."
+                                
+                                # SAFETY CHECK 3: Market open check
+                                if symbol_info.trade_mode == mt5.SYMBOL_TRADE_MODE_DISABLED:
+                                    validation_error = f"Market is disabled/closed for symbol {symbol}."
+                                
+                                # SAFETY CHECK 4: Read-only investor account check
+                                account_info = mt5.account_info()
+                                if account_info is None:
+                                    validation_error = "Could not fetch account info from MT5."
+                                elif not account_info.trade_allowed:
+                                    validation_error = "MT5 account is read-only (logged in with investor password)."
+                    
+                    if validation_error:
+                        logger.error(f"Engine safety check validation failed: {validation_error}")
+                        current_state = 'ERROR'
+                    else:
+                        # Success validation: Transition to RUNNING if auto trading is on, else MONITORING
+                        if settings.get('isAutoTrading', False):
+                            current_state = 'RUNNING'
+                        else:
+                            current_state = 'MONITORING'
+                        running_since = time.time()
+                        logger.info(f"Engine successfully started. Transitioned to {current_state}")
+                
+                elif received_command == 'PAUSE':
+                    current_state = 'PAUSED'
+                    logger.info("Engine PAUSED.")
+                
+                elif received_command == 'STOP':
+                    current_state = 'STOPPING'
+                    if not config.DRY_RUN:
+                        mt5_connector.disconnect_mt5()
+                    current_state = 'OFFLINE'
+                    running_since = None
+                    logger.info("Engine STOPPED. Disconnected from MT5.")
+                
+                elif received_command == 'RESTART':
+                    current_state = 'STOPPING'
+                    if not config.DRY_RUN:
+                        mt5_connector.disconnect_mt5()
+                    
+                    current_state = 'STARTING'
+                    if not config.DRY_RUN:
+                        if not mt5_connector.initialize_mt5(settings):
+                            current_state = 'ERROR'
+                        else:
+                            current_state = 'RUNNING' if settings.get('isAutoTrading', False) else 'MONITORING'
+                    else:
+                        current_state = 'RUNNING'
+                    
+                    running_since = time.time() if current_state in ['RUNNING', 'MONITORING'] else None
+                    logger.info(f"Engine successfully RESTARTED. Transitioned to {current_state}")
+                
+                elif received_command == 'EMERGENCY_STOP':
+                    current_state = 'PAUSED'
+                    logger.warning("🛑 EMERGENCY STOP TRIGGERED! Cancelling all pending orders...")
+                    
+                    if not config.DRY_RUN:
+                        # Cancel all pending orders for active symbol
+                        symbol = settings.get('symbol', 'XAUUSD')
+                        orders = mt5.orders_get(symbol=symbol)
+                        if orders:
+                            for order in orders:
+                                cancel_req = {
+                                    "action": mt5.TRADE_ACTION_REMOVE,
+                                    "order": order.ticket
+                                }
+                                mt5.order_send(cancel_req)
+                                logger.warning(f"Cancelled pending order ticket {order.ticket}")
+                    
+                    logger.info("Engine emergency safety hold active. Transitioned to PAUSED.")
+                
+                processed_command = received_command
 
-            # Check if auto trading is toggled off
-            if not settings.get('isAutoTrading', False):
-                logger.info("Auto trading is disabled in settings. Skipping checks...")
-                time.sleep(9) # Cooldown longer if auto trading is off
+            # 3. Synchronize state with heartbeat and compile telemetry metrics
+            running_time = int(time.time() - running_since) if running_since else 0
+            
+            # Fetch active positions count
+            open_positions = 0
+            broker_name = settings.get('broker', 'XM')
+            account_number = settings.get('accountNumber', '')
+            server_name = settings.get('server', '')
+            
+            if current_state in ['RUNNING', 'MONITORING', 'PAUSED']:
+                if not config.DRY_RUN:
+                    pos_array = mt5.positions_get(symbol=settings.get('symbol', 'XAUUSD'))
+                    open_positions = len(pos_array) if pos_array else 0
+                    
+                    acc_info = mt5.account_info()
+                    if acc_info:
+                        # Sync live account balance/equity metrics to Node DB
+                        node_client.update_account_metrics(
+                            balance=getattr(acc_info, 'balance', 0.0),
+                            equity=getattr(acc_info, 'equity', 0.0),
+                            margin_free=getattr(acc_info, 'margin_free', 0.0)
+                        )
+                else:
+                    open_positions = 0
+
+            metrics = {
+                "strategyName": "RSI-EMA Cross",
+                "connectedBroker": broker_name,
+                "connectedAccount": account_number,
+                "connectedServer": server_name,
+                "currentSymbol": settings.get('symbol', 'XAUUSD'),
+                "openPositionsCount": open_positions,
+                "runningTime": running_time
+            }
+
+            # Send heartbeat, get settings response
+            node_client.send_heartbeat(
+                state=current_state,
+                metrics=metrics,
+                processed_command=processed_command
+            )
+
+            # Reset processed command once database is synced
+            if received_command == 'NONE':
+                processed_command = 'NONE'
+
+            # 4. Engine Processing Execution (Skip strategy check if not RUNNING)
+            if current_state != 'RUNNING':
+                # PAUSED, MONITORING, OFFLINE, and ERROR modes still monitor active exits (SL/TP)
+                if current_state in ['MONITORING', 'PAUSED']:
+                    active_trades = node_client.get_active_trades()
+                    execution.monitor_active_trades(active_trades, settings)
                 continue
 
-            # Heartbeat check
+            # Heartbeat connection verification
             if not config.DRY_RUN:
                 if not mt5_connector.check_connection():
                     logger.warning("MT5 connection lost. Reconnecting...")
-                    if not mt5_connector.initialize_mt5():
+                    if not mt5_connector.initialize_mt5(settings):
                         logger.error("Reconnection failed. Retrying next cycle.")
                         continue
 
             # Check for completed M1 Candle
             symbol = settings.get('symbol', 'XAUUSD')
-            
             if config.DRY_RUN:
-                # Mock candle completed for testing purposes if dry running
-                # Generate a mock timestamp aligned to the minute
                 current_minute = int(time.time() // 60) * 60
                 rates = mock_rates(symbol)
                 completed_candle_time = current_minute - 60
             else:
-                # Fetch last completed candle from MT5 (index 1 is the last closed candle)
                 rates_array = mt5.copy_rates_from_prev(symbol, mt5.TIMEFRAME_M1, 1, 100)
                 if rates_array is None or len(rates_array) == 0:
                     logger.error(f"Failed to fetch rates from MT5: {mt5.last_error()}")
                     continue
                 
-                # Convert MT5 Rates to standard dictionaries
                 rates = [
                     {
                         "time": int(rate[0]),
@@ -133,57 +265,42 @@ def run_engine():
                 ]
                 completed_candle_time = rates[-1]["time"]
 
-            # Verify if this completed candle has already been processed
+            # Process completed candle
             if completed_candle_time > state["last_processed_candle_time"]:
                 logger.info(f"New completed candle detected. Time: {completed_candle_time}. Checking strategy signals...")
                 
-                # Evaluate strategy indicators
+                # Dynamic decoupled strategy execution
                 signal = strategy.check_signals(rates)
-                
                 if signal:
-                    # Place trade
                     trade_payload = execution.execute_order(signal, settings)
                     if trade_payload:
                         node_client.create_trade(trade_payload)
                         state["last_processed_signal"] = signal
                 
-                # Update persistent state
                 state["last_processed_candle_time"] = completed_candle_time
                 save_state(state)
 
-            # Monitor active open positions (SL/TP tracking)
+            # Monitor active positions
             active_trades = node_client.get_active_trades()
             execution.monitor_active_trades(active_trades, settings)
 
-    except KeyboardInterrupt:
-        logger.info("Engine termination signal received.")
-    except Exception as e:
-        logger.error(f"Unexpected error in core loop: {e}")
-    finally:
-        if not config.DRY_RUN:
-            mt5_connector.disconnect_mt5()
-        state["engine_status"] = "stopped"
-        save_state(state)
-        logger.info("GTAP Trading Engine shutdown complete.")
+        except Exception as e:
+            logger.error(f"Unexpected error in engine control loop: {e}")
+            time.sleep(2)
 
 def mock_rates(symbol):
     import random
     current_time = int(time.time() // 60) * 60
     rates = []
-    
-    # Consistent mock price start
     price = 2000.0
-    random.seed(current_time) # Seed with current time to get dynamic shifts per minute
-    
+    random.seed(current_time)
     for i in range(100):
         t = current_time - (100 - i) * 60
-        # Fluctuating candle generation
         change = random.uniform(-1.0, 1.0)
         open_val = price
         close_val = price + change
         high_val = max(open_val, close_val) + random.uniform(0.1, 0.5)
         low_val = min(open_val, close_val) - random.uniform(0.1, 0.5)
-        
         rates.append({
             "time": t,
             "open": open_val,
@@ -193,7 +310,6 @@ def mock_rates(symbol):
             "volume": 10
         })
         price = close_val
-        
     return rates
 
 if __name__ == "__main__":

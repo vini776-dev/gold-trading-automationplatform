@@ -63,4 +63,11 @@ export const API = {
 
   // Logs
   getLogs: (page = 1, limit = 20, level = '') => request(`/logs?page=${page}&limit=${limit}&level=${level}`, { method: 'GET' }),
+
+  // Engine Controls
+  startEngine: () => request('/engine/start', { method: 'POST' }),
+  pauseEngine: () => request('/engine/pause', { method: 'POST' }),
+  stopEngine: () => request('/engine/stop', { method: 'POST' }),
+  restartEngine: () => request('/engine/restart', { method: 'POST' }),
+  emergencyStop: () => request('/engine/emergency-stop', { method: 'POST' }),
 };

@@ -81,6 +81,35 @@ const botSettingSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    engineState: {
+      type: String,
+      enum: ['OFFLINE', 'STARTING', 'MONITORING', 'RUNNING', 'PAUSED', 'STOPPING', 'ERROR'],
+      default: 'OFFLINE'
+    },
+    engineCommand: {
+      type: String,
+      enum: ['START', 'PAUSE', 'STOP', 'RESTART', 'EMERGENCY_STOP', 'NONE'],
+      default: 'NONE'
+    },
+    emergencyStopActive: {
+      type: Boolean,
+      default: false
+    },
+    lastHeartbeat: {
+      type: Date
+    },
+    engineMetrics: {
+      strategyName: { type: String, default: 'RSI-EMA Cross' },
+      connectedBroker: String,
+      connectedAccount: String,
+      connectedServer: String,
+      currentSymbol: { type: String, default: 'XAUUSD' },
+      openPositionsCount: { type: Number, default: 0 },
+      todayTradesCount: { type: Number, default: 0 },
+      totalProfitLoss: { type: Number, default: 0 },
+      runningTime: { type: Number, default: 0 }, // in seconds
+      lastTradeTime: Date
+    },
   },
   {
     timestamps: true,

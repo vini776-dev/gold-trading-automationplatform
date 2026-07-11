@@ -71,27 +71,65 @@ const initSocket = (server) => {
     console.log(`Socket client connected to namespace /trader. Joined room: ${roomName}`);
 
     // Immediately send current engine status on connection
-    emitUserEvent(userId, 'engine_status', getEngineStatus());
+    (async () => {
+      try {
+        const BotSetting = require('../models/BotSetting');
+        const settings = await BotSetting.findOne({ userId });
+        if (settings) {
+          const isOnline = Date.now() - (settings.lastHeartbeat ? settings.lastHeartbeat.getTime() : 0) < 15000;
+          emitUserEvent(userId, 'engine_status', {
+            status: isOnline ? 'ONLINE' : 'OFFLINE',
+            engineState: settings.engineState || 'OFFLINE',
+            engineCommand: settings.engineCommand || 'NONE',
+            emergencyStopActive: settings.emergencyStopActive || false,
+            lastHeartbeat: settings.lastHeartbeat,
+            metrics: settings.engineMetrics
+          });
+        } else {
+          emitUserEvent(userId, 'engine_status', getEngineStatus());
+        }
+      } catch (err) {
+        emitUserEvent(userId, 'engine_status', getEngineStatus());
+      }
+    })();
 
     socket.on('disconnect', () => {
       console.log(`Socket client disconnected. Left room: ${roomName}`);
     });
   });
 
-  // Periodically broadcast engine status (every 10 seconds)
-  setInterval(() => {
+  // Periodically broadcast engine status (every 3 seconds)
+  setInterval(async () => {
     if (io) {
-      const status = getEngineStatus();
-      // Broadcast to all connected sockets in the namespace
-      traderNamespace.emit('engine_status', {
-        eventId: uuidv4(),
-        version: '1.0.0',
-        timestamp: new Date().toISOString(),
-        event: 'engine_status',
-        data: status,
-      });
+      try {
+        const BotSetting = require('../models/BotSetting');
+        const settings = await BotSetting.findOne({});
+        if (settings) {
+          const isOnline = Date.now() - (settings.lastHeartbeat ? settings.lastHeartbeat.getTime() : 0) < 15000;
+          const statusPayload = {
+            status: isOnline ? 'ONLINE' : 'OFFLINE',
+            engineState: settings.engineState || 'OFFLINE',
+            engineCommand: settings.engineCommand || 'NONE',
+            emergencyStopActive: settings.emergencyStopActive || false,
+            lastHeartbeat: settings.lastHeartbeat,
+            metrics: settings.engineMetrics
+          };
+
+          const roomName = `user_${settings.userId}`;
+          const payload = {
+            eventId: uuidv4(),
+            version: '1.0.0',
+            timestamp: new Date().toISOString(),
+            event: 'engine_status',
+            data: statusPayload,
+          };
+          traderNamespace.to(roomName).emit('engine_status', payload);
+        }
+      } catch (err) {
+        console.error('Socket periodic status broadcast failed:', err);
+      }
     }
-  }, 10); // Check and broadcast every 10 seconds
+  }, 3000); // Check and broadcast every 3 seconds
 
   return io;
 };
