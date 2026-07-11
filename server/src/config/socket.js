@@ -74,8 +74,10 @@ const initSocket = (server) => {
     (async () => {
       try {
         const BotSetting = require('../models/BotSetting');
+        const MT5Account = require('../models/MT5Account');
         const settings = await BotSetting.findOne({ userId });
         if (settings) {
+          const account = await MT5Account.findById(settings.activeAccountId);
           const isOnline = Date.now() - (settings.lastHeartbeat ? settings.lastHeartbeat.getTime() : 0) < 15000;
           emitUserEvent(userId, 'engine_status', {
             status: isOnline ? 'ONLINE' : 'OFFLINE',
@@ -83,7 +85,16 @@ const initSocket = (server) => {
             engineCommand: settings.engineCommand || 'NONE',
             emergencyStopActive: settings.emergencyStopActive || false,
             lastHeartbeat: settings.lastHeartbeat,
-            metrics: settings.engineMetrics
+            metrics: {
+              ...(settings.engineMetrics || {}),
+              balance: account ? account.balance : 0.0,
+              equity: account ? account.equity : 0.0,
+              freeMargin: account ? account.marginFree : 0.0,
+              marginLevel: account ? account.marginLevel : 0.0,
+              floatingPnL: account ? account.floatingPnL : 0.0,
+              todayProfit: account ? account.todayProfit : 0.0,
+              openPositionsCount: account ? account.openPositions : 0
+            }
           });
         } else {
           emitUserEvent(userId, 'engine_status', getEngineStatus());
@@ -103,8 +114,10 @@ const initSocket = (server) => {
     if (io) {
       try {
         const BotSetting = require('../models/BotSetting');
+        const MT5Account = require('../models/MT5Account');
         const settings = await BotSetting.findOne({});
         if (settings) {
+          const account = await MT5Account.findById(settings.activeAccountId);
           const isOnline = Date.now() - (settings.lastHeartbeat ? settings.lastHeartbeat.getTime() : 0) < 15000;
           const statusPayload = {
             status: isOnline ? 'ONLINE' : 'OFFLINE',
@@ -112,7 +125,16 @@ const initSocket = (server) => {
             engineCommand: settings.engineCommand || 'NONE',
             emergencyStopActive: settings.emergencyStopActive || false,
             lastHeartbeat: settings.lastHeartbeat,
-            metrics: settings.engineMetrics
+            metrics: {
+              ...(settings.engineMetrics || {}),
+              balance: account ? account.balance : 0.0,
+              equity: account ? account.equity : 0.0,
+              freeMargin: account ? account.marginFree : 0.0,
+              marginLevel: account ? account.marginLevel : 0.0,
+              floatingPnL: account ? account.floatingPnL : 0.0,
+              todayProfit: account ? account.todayProfit : 0.0,
+              openPositionsCount: account ? account.openPositions : 0
+            }
           };
 
           const roomName = `user_${settings.userId}`;

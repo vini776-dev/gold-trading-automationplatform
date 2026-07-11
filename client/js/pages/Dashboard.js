@@ -41,6 +41,9 @@ export const DashboardPage = {
           <div><strong style="color: var(--color-text-muted);">Server:</strong> <span id="stat-server">-</span></div>
           <div><strong style="color: var(--color-text-muted);">Symbol:</strong> <span id="stat-symbol">-</span></div>
           <div><strong style="color: var(--color-text-muted);">Open Positions:</strong> <span id="stat-positions">-</span></div>
+          <div><strong style="color: var(--color-text-muted);">Free Margin:</strong> <span id="stat-free-margin">-</span></div>
+          <div><strong style="color: var(--color-text-muted);">Margin Level:</strong> <span id="stat-margin-level">-</span></div>
+          <div><strong style="color: var(--color-text-muted);">Floating PnL:</strong> <span id="stat-floating-pnl">-</span></div>
           <div><strong style="color: var(--color-text-muted);">Running Time:</strong> <span id="stat-runtime">00:00:00</span></div>
           <div><strong style="color: var(--color-text-muted);">Last Heartbeat:</strong> <span id="stat-heartbeat">-</span></div>
         </div>
@@ -193,10 +196,44 @@ export const DashboardPage = {
       document.getElementById('stat-server').textContent = metrics.connectedServer || '-';
       document.getElementById('stat-symbol').textContent = metrics.currentSymbol || '-';
       document.getElementById('stat-positions').textContent = metrics.openPositionsCount !== undefined ? metrics.openPositionsCount : '-';
+      
+      // Live MT5 margins
+      document.getElementById('stat-free-margin').textContent = metrics.freeMargin !== undefined ? `$${parseFloat(metrics.freeMargin).toFixed(2)}` : '-';
+      document.getElementById('stat-margin-level').textContent = metrics.marginLevel !== undefined ? `${parseFloat(metrics.marginLevel).toFixed(2)}%` : '-';
+      
+      const fpnlEl = document.getElementById('stat-floating-pnl');
+      if (fpnlEl && metrics.floatingPnL !== undefined) {
+        const fpnl = parseFloat(metrics.floatingPnL);
+        fpnlEl.textContent = `${fpnl >= 0 ? '+' : ''}$${fpnl.toFixed(2)}`;
+        fpnlEl.style.color = fpnl >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+        fpnlEl.style.fontWeight = '600';
+      } else if (fpnlEl) {
+        fpnlEl.textContent = '-';
+        fpnlEl.style.color = 'inherit';
+      }
+
       document.getElementById('stat-runtime').textContent = formatRuntime(metrics.runningTime);
       
       const hb = statusData.lastHeartbeat;
       document.getElementById('stat-heartbeat').textContent = hb ? new Date(hb).toLocaleTimeString() : '-';
+
+      // Dynamically update primary stat cards in real time (no page refresh)
+      const balanceEl = document.getElementById('card-balance');
+      const equityEl = document.getElementById('card-equity');
+      const profitEl = document.getElementById('card-profit');
+
+      if (balanceEl && metrics.balance !== undefined) {
+        balanceEl.innerHTML = `<h3>Balance</h3><div class="value">$${parseFloat(metrics.balance).toFixed(2)}</div>`;
+      }
+      if (equityEl && metrics.equity !== undefined) {
+        equityEl.innerHTML = `<h3>Equity</h3><div class="value">$${parseFloat(metrics.equity).toFixed(2)}</div>`;
+      }
+      if (profitEl && metrics.todayProfit !== undefined) {
+        const tp = parseFloat(metrics.todayProfit);
+        const profitSign = tp >= 0 ? '+' : '';
+        const profitColor = tp >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+        profitEl.innerHTML = `<h3>Today's Profit</h3><div class="value" style="color: ${profitColor};">${profitSign}$${tp.toFixed(2)}</div>`;
+      }
     };
 
     // 1. Initial State UI Load

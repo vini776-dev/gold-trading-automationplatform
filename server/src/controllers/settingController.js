@@ -302,7 +302,7 @@ mt5.shutdown()
 
 const handleUpdateAccountMetrics = async (req, res) => {
   try {
-    const { balance, equity, marginFree } = req.body;
+    const { balance, equity, marginFree, marginLevel, floatingPnL, todayProfit, openPositions } = req.body;
 
     const MT5Account = require('../models/MT5Account');
     let account = await MT5Account.findOne({ userId: req.user._id, isDefault: true });
@@ -313,6 +313,10 @@ const handleUpdateAccountMetrics = async (req, res) => {
     if (balance !== undefined) account.balance = balance;
     if (equity !== undefined) account.equity = equity;
     if (marginFree !== undefined) account.marginFree = marginFree;
+    if (marginLevel !== undefined) account.marginLevel = marginLevel;
+    if (floatingPnL !== undefined) account.floatingPnL = floatingPnL;
+    if (todayProfit !== undefined) account.todayProfit = todayProfit;
+    if (openPositions !== undefined) account.openPositions = openPositions;
 
     await account.save();
 
@@ -322,7 +326,11 @@ const handleUpdateAccountMetrics = async (req, res) => {
       data: {
         balance: account.balance,
         equity: account.equity,
-        marginFree: account.marginFree
+        marginFree: account.marginFree,
+        marginLevel: account.marginLevel,
+        floatingPnL: account.floatingPnL,
+        todayProfit: account.todayProfit,
+        openPositions: account.openPositions
       }
     });
   } catch (error) {

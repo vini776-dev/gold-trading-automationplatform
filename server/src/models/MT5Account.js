@@ -46,6 +46,34 @@ const mt5AccountSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    balance: {
+      type: Number,
+      default: 0.0,
+    },
+    equity: {
+      type: Number,
+      default: 0.0,
+    },
+    marginFree: {
+      type: Number,
+      default: 0.0,
+    },
+    marginLevel: {
+      type: Number,
+      default: 0.0,
+    },
+    floatingPnL: {
+      type: Number,
+      default: 0.0,
+    },
+    todayProfit: {
+      type: Number,
+      default: 0.0,
+    },
+    openPositions: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
