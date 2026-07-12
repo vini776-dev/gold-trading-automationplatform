@@ -177,6 +177,10 @@ const handleTestConnection = async (req, res) => {
           balance: 10020.52,
           equity: 10020.52,
           marginFree: 10020.52,
+          marginLevel: 750.0,
+          floatingPnL: 0.0,
+          todayProfit: 45.20,
+          openPositions: 0,
           leverage: '1:500',
           currency: 'USD',
           accountType: 'Demo'
@@ -192,6 +196,7 @@ const handleTestConnection = async (req, res) => {
 import MetaTrader5 as mt5
 import sys
 import json
+import datetime
 
 path = "${terminalPath ? terminalPath.replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\"') : ''}"
 login = int(${accountNumber})
@@ -223,6 +228,18 @@ if not info:
     mt5.shutdown()
     sys.exit(0)
 
+# Get positions for floating PnL and count
+pos_array = mt5.positions_get()
+open_positions = len(pos_array) if pos_array else 0
+floating_pnl = getattr(info, 'profit', 0.0)
+
+# Calculate Today's Profit
+now = datetime.datetime.now()
+today_start = datetime.datetime(now.year, now.month, now.day, 0, 0, 0)
+history_deals = mt5.history_deals_get(today_start, now)
+today_profit = sum(deal.profit for deal in history_deals) if history_deals else 0.0
+today_profit += sum(deal.swap + deal.commission for deal in history_deals) if history_deals else 0.0
+
 result = {
     "success": True,
     "accountName": getattr(info, 'name', 'N/A'),
@@ -232,6 +249,10 @@ result = {
     "balance": getattr(info, 'balance', 0.0),
     "equity": getattr(info, 'equity', 0.0),
     "marginFree": getattr(info, 'margin_free', 0.0),
+    "marginLevel": getattr(info, 'margin_level', 0.0),
+    "floatingPnL": floating_pnl,
+    "todayProfit": today_profit,
+    "openPositions": open_positions,
     "leverage": f"1:{getattr(info, 'leverage', 1)}",
     "currency": getattr(info, 'currency', 'USD'),
     "accountType": "Demo" if getattr(info, 'trade_mode', 0) == mt5.ACCOUNT_TRADE_MODE_DEMO else "Real"
@@ -270,6 +291,16 @@ mt5.shutdown()
     account.connectionStatus = testResult.success ? 'SUCCESS' : 'FAILED';
     account.lastConnectionTest = new Date();
     account.lastConnectionError = errorMsg;
+
+    if (testResult.success) {
+      account.balance = testResult.balance;
+      account.equity = testResult.equity;
+      account.marginFree = testResult.marginFree;
+      account.marginLevel = testResult.marginLevel;
+      account.floatingPnL = testResult.floatingPnL;
+      account.todayProfit = testResult.todayProfit;
+      account.openPositions = testResult.openPositions;
+    }
 
     if (mt5Password !== '******') {
       const { encrypt } = require('../utils/crypto');

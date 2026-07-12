@@ -55,7 +55,12 @@ export const SettingsPage = {
               <div><strong style="color: var(--color-text-muted);">Account No:</strong> <span id="panel-number">-</span></div>
               <div><strong style="color: var(--color-text-muted);">Balance:</strong> <span id="panel-balance">-</span></div>
               <div><strong style="color: var(--color-text-muted);">Equity:</strong> <span id="panel-equity">-</span></div>
+              <div><strong style="color: var(--color-text-muted);">Free Margin:</strong> <span id="panel-free-margin">-</span></div>
+              <div><strong style="color: var(--color-text-muted);">Margin Level:</strong> <span id="panel-margin-level">-</span></div>
               <div><strong style="color: var(--color-text-muted);">Leverage:</strong> <span id="panel-leverage">-</span></div>
+              <div><strong style="color: var(--color-text-muted);">Currency:</strong> <span id="panel-currency">-</span></div>
+              <div><strong style="color: var(--color-text-muted);">Server:</strong> <span id="panel-server">-</span></div>
+              <div><strong style="color: var(--color-text-muted);">Broker Company:</strong> <span id="panel-broker">-</span></div>
               <div><strong style="color: var(--color-text-muted);">Account Type:</strong> <span id="panel-type">-</span></div>
             </div>
           </div>
@@ -345,12 +350,17 @@ export const SettingsPage = {
 
           // Populate success details panel
           document.getElementById('connection-details-panel').style.display = 'block';
-          document.getElementById('panel-name').textContent = result.accountName;
-          document.getElementById('panel-number').textContent = result.accountNumber;
-          document.getElementById('panel-balance').textContent = `$${parseFloat(result.balance).toFixed(2)}`;
-          document.getElementById('panel-equity').textContent = `$${parseFloat(result.equity).toFixed(2)}`;
-          document.getElementById('panel-leverage').textContent = result.leverage;
-          document.getElementById('panel-type').textContent = result.accountType;
+          document.getElementById('panel-name').textContent = result.accountName || 'N/A';
+          document.getElementById('panel-number').textContent = result.accountNumber || 'N/A';
+          document.getElementById('panel-balance').textContent = result.balance !== undefined ? `$${parseFloat(result.balance).toFixed(2)}` : '-';
+          document.getElementById('panel-equity').textContent = result.equity !== undefined ? `$${parseFloat(result.equity).toFixed(2)}` : '-';
+          document.getElementById('panel-free-margin').textContent = result.marginFree !== undefined ? `$${parseFloat(result.marginFree).toFixed(2)}` : '-';
+          document.getElementById('panel-margin-level').textContent = result.marginLevel !== undefined ? `${parseFloat(result.marginLevel).toFixed(2)}%` : '-';
+          document.getElementById('panel-leverage').textContent = result.leverage || 'N/A';
+          document.getElementById('panel-currency').textContent = result.currency || 'N/A';
+          document.getElementById('panel-server').textContent = result.server || 'N/A';
+          document.getElementById('panel-broker').textContent = result.broker || 'N/A';
+          document.getElementById('panel-type').textContent = result.accountType || 'N/A';
 
           APP.showToast('Connection verified successfully!', 'success');
         } else {
