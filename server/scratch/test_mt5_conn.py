@@ -2,16 +2,21 @@
 import MetaTrader5 as mt5
 import sys
 import json
+import datetime
 
 path = ""
-login = int(12345678)
-password = "mypassword"
-server = "XMGlobal-MT5 2"
+login = int(1301512757)
+password = "Suraj9554@"
+server = "XMGlobal-MT5 6"
 
 initialized = False
 if path:
-    initialized = mt5.initialize(path=path)
-else:
+    try:
+        initialized = mt5.initialize(path=path)
+    except Exception:
+        initialized = False
+
+if not initialized:
     initialized = mt5.initialize()
 
 if not initialized:
@@ -33,6 +38,18 @@ if not info:
     mt5.shutdown()
     sys.exit(0)
 
+# Get positions for floating PnL and count
+pos_array = mt5.positions_get()
+open_positions = len(pos_array) if pos_array else 0
+floating_pnl = getattr(info, 'profit', 0.0)
+
+# Calculate Today's Profit
+now = datetime.datetime.now()
+today_start = datetime.datetime(now.year, now.month, now.day, 0, 0, 0)
+history_deals = mt5.history_deals_get(today_start, now)
+today_profit = sum(deal.profit for deal in history_deals) if history_deals else 0.0
+today_profit += sum(deal.swap + deal.commission for deal in history_deals) if history_deals else 0.0
+
 result = {
     "success": True,
     "accountName": getattr(info, 'name', 'N/A'),
@@ -42,6 +59,10 @@ result = {
     "balance": getattr(info, 'balance', 0.0),
     "equity": getattr(info, 'equity', 0.0),
     "marginFree": getattr(info, 'margin_free', 0.0),
+    "marginLevel": getattr(info, 'margin_level', 0.0),
+    "floatingPnL": floating_pnl,
+    "todayProfit": today_profit,
+    "openPositions": open_positions,
     "leverage": f"1:{getattr(info, 'leverage', 1)}",
     "currency": getattr(info, 'currency', 'USD'),
     "accountType": "Demo" if getattr(info, 'trade_mode', 0) == mt5.ACCOUNT_TRADE_MODE_DEMO else "Real"

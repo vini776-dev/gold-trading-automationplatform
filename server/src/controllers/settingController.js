@@ -203,11 +203,12 @@ login = int(${accountNumber})
 password = "${mt5Password.replace(/"/g, '\\"')}"
 server = "${server.replace(/"/g, '\\"')}"
 
-initialized = False
-if path:
-    initialized = mt5.initialize(path=path)
-else:
-    initialized = mt5.initialize()
+initialized = mt5.initialize()
+if not initialized and path:
+    try:
+        initialized = mt5.initialize(path=path)
+    except Exception:
+        initialized = False
 
 if not initialized:
     err = mt5.last_error()
@@ -262,7 +263,7 @@ mt5.shutdown()
       `);
 
       try {
-        const output = execSync(`python "${tempScriptPath}"`, { encoding: 'utf8', timeout: 15000 });
+        const output = execSync(`python "${tempScriptPath}"`, { encoding: 'utf8', timeout: 30000 });
         const parsed = JSON.parse(output.trim());
         if (parsed.success) {
           testResult = parsed;

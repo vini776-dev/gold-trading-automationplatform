@@ -38,12 +38,16 @@ def initialize_mt5(settings=None):
         return False
 
     # 2. Initialize connection to MT5 terminal
-    initialized = False
-    if terminal_path:
-        logger.info(f"Initializing MT5 terminal at custom path: {terminal_path}")
-        initialized = mt5.initialize(path=terminal_path)
-    else:
-        initialized = mt5.initialize()
+    logger.info("Connecting to MT5 terminal...")
+    initialized = mt5.initialize() # Try connecting to already running terminal first
+    
+    if not initialized and terminal_path:
+        logger.info(f"Connecting to default MT5 terminal failed. Attempting to launch terminal at custom path: {terminal_path}")
+        try:
+            initialized = mt5.initialize(path=terminal_path)
+        except Exception as e:
+            logger.warning(f"Failed to launch MT5 at custom path: {e}")
+            initialized = False
 
     if not initialized:
         logger.critical(f"MT5 initialize failed, error code: {mt5.last_error()}")
