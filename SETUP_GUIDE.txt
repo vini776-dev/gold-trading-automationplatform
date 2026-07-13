@@ -1,0 +1,88 @@
+========================================================================
+             GOLD TRADING AUTOMATION PLATFORM (GTAP) - SETUP GUIDE
+========================================================================
+
+This guide explains how to set up and run the platform on your friend's PC.
+
+------------------------------------------------------------------------
+STEP 1: PREREQUISITES
+------------------------------------------------------------------------
+Before starting, make sure the following are installed:
+1. Node.js (v16 or higher)
+2. Python (v3.8 to v3.13)
+3. MetaTrader 5 (Logged in to XM or Exness account)
+4. VS Code (Recommended, with 'Live Server' extension)
+
+------------------------------------------------------------------------
+STEP 2: FOLDER PREPARATION
+------------------------------------------------------------------------
+Send your friend the project ZIP folder. Inside they will find:
+- "server"           : Node.js backend server
+- "trading-engine"   : Python bot and strategy
+- "client"           : Dashboard website frontend
+- "GTAP_DataBridge.mq5" : MT5 EA script
+- "SETUP_GUIDE.txt"  : This instruction file
+
+------------------------------------------------------------------------
+STEP 3: INSTALL DEPENDENCIES (RUN COMMANDS)
+------------------------------------------------------------------------
+Open command prompt (CMD) on your PC and run:
+
+1. For Node.js Server:
+   cd server
+   npm install
+
+2. For Python Trading Bot:
+   cd ../trading-engine
+   pip install -r requirements.txt
+
+------------------------------------------------------------------------
+STEP 4: SETUP METATRADER 5 EA (DATA BRIDGE)
+------------------------------------------------------------------------
+Since new MT5 builds do not allow direct Python connection on some PCs,
+we use a Data Bridge.
+
+1. Open MetaTrader 5.
+2. Go to: File -> Open Data Folder.
+3. Open folder: MQL5 -> Experts.
+4. Copy "GTAP_DataBridge.mq5" from the project and paste it inside "Experts".
+5. In MT5, press F4 (this opens MetaEditor).
+6. In MetaEditor (left navigator), double-click "GTAP_DataBridge.mq5".
+7. Click "Compile" at the top (or press F5). You should see "0 errors".
+8. Close MetaEditor.
+9. In MT5, in the Navigator panel, right-click "Expert Advisors" and click "Refresh".
+10. Drag "GTAP_DataBridge" from the list and drop it on any active chart (e.g. USDJPY).
+11. Check "Allow algorithmic trading" in the popup window and click OK.
+12. Make sure the "Algo Trading" button in the MT5 top toolbar is GREEN (ON).
+
+------------------------------------------------------------------------
+STEP 5: RUN THE PLATFORM
+------------------------------------------------------------------------
+Run these in separate command prompt windows:
+
+1. Start Node.js Server:
+   cd server
+   node src/server.js
+
+2. Start Python Engine:
+   cd trading-engine
+   python main.py
+
+3. Open Dashboard UI:
+   - Open the "client" folder in VS Code.
+   - Right-click "index.html" -> "Open with Live Server".
+   - Your browser will open: http://127.0.0.1:5500/client/index.html
+
+------------------------------------------------------------------------
+STEP 6: START TRADING
+------------------------------------------------------------------------
+1. Go to the dashboard website (http://127.0.0.1:5500/client/#/settings).
+2. Enter your MT5 Account Number, Password, and Server.
+3. Click "Test Connection". It will load your live XM demo account.
+4. Click "Save Configuration" (If it says "token missing", click logout and login again).
+5. Go to the Dashboard page, click the green "Start" button next to Trading Control Panel.
+6. The status will become "RUNNING" (Green), and the bot will start trading Gold!
+
+========================================================================
+                       SETUP IS COMPLETE! Happy Trading!
+========================================================================
