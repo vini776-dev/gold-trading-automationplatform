@@ -10,6 +10,8 @@ def execute_order(signal, settings):
     Supports DRY_RUN mode for risk-free testing.
     """
     symbol = settings.get('symbol', 'XAUUSD')
+    import mt5_connector
+    resolved_symbol = mt5_connector.resolve_symbol(symbol)
     lot_size = settings.get('lotSize', 0.20)
     sl_buffer = settings.get('stopLossBuffer', 0.02)
 
@@ -20,9 +22,9 @@ def execute_order(signal, settings):
             ask = 2000.5
         symbol_info = MockSymbolInfo()
     else:
-        symbol_info = mt5.symbol_info_tick(symbol)
+        symbol_info = mt5.symbol_info_tick(resolved_symbol)
         if not symbol_info:
-            logger.error(f"Failed to get symbol tick info for {symbol}")
+            logger.error(f"Failed to get symbol tick info for {resolved_symbol} (original: {symbol})")
             return None
 
     if signal == "BUY":
@@ -60,7 +62,7 @@ def execute_order(signal, settings):
     # 3. Assemble MT5 Order request
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
-        "symbol": symbol,
+        "symbol": resolved_symbol,
         "volume": lot_size,
         "type": order_type,
         "price": price,

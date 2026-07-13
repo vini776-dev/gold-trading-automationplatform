@@ -187,93 +187,58 @@ const handleTestConnection = async (req, res) => {
         };
       }
     } else {
-      const { execSync } = require('child_process');
-      const tempScriptPath = path.join(__dirname, '../../scratch/test_mt5_conn.py');
-      const scratchDir = path.dirname(tempScriptPath);
-      if (!fs.existsSync(scratchDir)) fs.mkdirSync(scratchDir, { recursive: true });
+      // Call the Python Engine API (port 5001) directly — no subprocess, no cmd.exe, no ETIMEDOUT
+      const http = require('http');
+      const engineApiResult = await new Promise((resolve) => {
+        const postData = JSON.stringify({ broker, accountNumber, mt5Password, server, terminalPath });
+        const options = {
+          hostname: '127.0.0.1',
+          port: 5001,
+          path: '/test-connection',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData)
+          }
+        };
 
-      fs.writeFileSync(tempScriptPath, `
-import MetaTrader5 as mt5
-import sys
-import json
-import datetime
+        const req = http.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => {
+            try {
+              resolve({ ok: true, body: JSON.parse(data) });
+            } catch (e) {
+              resolve({ ok: false, error: `Invalid response from engine: ${data}` });
+            }
+          });
+        });
 
-path = "${terminalPath ? terminalPath.replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\"') : ''}"
-login = int(${accountNumber})
-password = "${mt5Password.replace(/"/g, '\\"')}"
-server = "${server.replace(/"/g, '\\"')}"
+        req.setTimeout(50000, () => {
+          req.destroy();
+          resolve({ ok: false, error: 'Connection timed out. Make sure MetaTrader 5 is open and the Python engine is running.' });
+        });
 
-initialized = mt5.initialize()
-if not initialized and path:
-    try:
-        initialized = mt5.initialize(path=path)
-    except Exception:
-        initialized = False
+        req.on('error', (e) => {
+          if (e.code === 'ECONNREFUSED') {
+            resolve({ ok: false, error: 'Python trading engine is not running. Please start the engine first (python main.py).' });
+          } else {
+            resolve({ ok: false, error: `Engine API error: ${e.message}` });
+          }
+        });
 
-if not initialized:
-    err = mt5.last_error()
-    print(json.dumps({"success": False, "error": f"Failed to initialize MT5 terminal: {err}"}))
-    sys.exit(0)
+        req.write(postData);
+        req.end();
+      });
 
-logged_in = mt5.login(login=login, password=password, server=server)
-if not logged_in:
-    err = mt5.last_error()
-    print(json.dumps({"success": False, "error": f"Failed to login to MT5: {err}"}))
-    mt5.shutdown()
-    sys.exit(0)
-
-info = mt5.account_info()
-if not info:
-    err = mt5.last_error()
-    print(json.dumps({"success": False, "error": f"Failed to get account info: {err}"}))
-    mt5.shutdown()
-    sys.exit(0)
-
-# Get positions for floating PnL and count
-pos_array = mt5.positions_get()
-open_positions = len(pos_array) if pos_array else 0
-floating_pnl = getattr(info, 'profit', 0.0)
-
-# Calculate Today's Profit
-now = datetime.datetime.now()
-today_start = datetime.datetime(now.year, now.month, now.day, 0, 0, 0)
-history_deals = mt5.history_deals_get(today_start, now)
-today_profit = sum(deal.profit for deal in history_deals) if history_deals else 0.0
-today_profit += sum(deal.swap + deal.commission for deal in history_deals) if history_deals else 0.0
-
-result = {
-    "success": True,
-    "accountName": getattr(info, 'name', 'N/A'),
-    "accountNumber": str(getattr(info, 'login', login)),
-    "broker": getattr(info, 'company', '${broker}'),
-    "server": getattr(info, 'server', server),
-    "balance": getattr(info, 'balance', 0.0),
-    "equity": getattr(info, 'equity', 0.0),
-    "marginFree": getattr(info, 'margin_free', 0.0),
-    "marginLevel": getattr(info, 'margin_level', 0.0),
-    "floatingPnL": floating_pnl,
-    "todayProfit": today_profit,
-    "openPositions": open_positions,
-    "leverage": f"1:{getattr(info, 'leverage', 1)}",
-    "currency": getattr(info, 'currency', 'USD'),
-    "accountType": "Demo" if getattr(info, 'trade_mode', 0) == mt5.ACCOUNT_TRADE_MODE_DEMO else "Real"
-}
-print(json.dumps(result))
-mt5.shutdown()
-      `);
-
-      try {
-        const output = execSync(`python "${tempScriptPath}"`, { encoding: 'utf8', timeout: 30000 });
-        const parsed = JSON.parse(output.trim());
-        if (parsed.success) {
-          testResult = parsed;
-        } else {
-          testResult = { success: false, error: parsed.error };
-          errorMsg = parsed.error;
-        }
-      } catch (err) {
-        testResult = { success: false, error: `Process error testing connection: ${err.message}` };
-        errorMsg = err.message;
+      if (!engineApiResult.ok) {
+        testResult = { success: false, error: engineApiResult.error };
+        errorMsg = engineApiResult.error;
+      } else if (!engineApiResult.body.success) {
+        testResult = { success: false, error: engineApiResult.body.error };
+        errorMsg = engineApiResult.body.error;
+      } else {
+        testResult = engineApiResult.body;
       }
     }
 

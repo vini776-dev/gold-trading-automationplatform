@@ -7,7 +7,9 @@ import mt5_connector
 import node_client
 import strategy
 import execution
+import engine_api
 from logger import logger
+
 
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'state.json')
 
@@ -35,9 +37,13 @@ def save_state(state):
 
 def run_engine():
     logger.info("Initializing GTAP Python Trading Engine...")
-    
+
+    # 0. Start the Engine API HTTP server (port 5001) so Node.js can call test-connection
+    engine_api.start_engine_api()
+
     # 1. Load configuration and state
     state = load_state()
+
     
     # 2. Get initial settings to restore previous session state (Session Recovery)
     settings = node_client.get_settings()
@@ -97,12 +103,13 @@ def run_engine():
                         else:
                             # SAFETY CHECK 2: Symbol availability check
                             symbol = settings.get('symbol', 'XAUUSD')
-                            symbol_info = mt5.symbol_info(symbol)
+                            resolved_symbol = mt5_connector.resolve_symbol(symbol)
+                            symbol_info = mt5.symbol_info(resolved_symbol)
                             if symbol_info is None:
                                 validation_error = f"Symbol {symbol} not found on broker."
                             else:
                                 if not symbol_info.visible:
-                                    if not mt5.symbol_select(symbol, True):
+                                    if not mt5.symbol_select(resolved_symbol, True):
                                         validation_error = f"Symbol {symbol} cannot be selected."
                                 
                                 # SAFETY CHECK 3: Market open check
@@ -164,7 +171,8 @@ def run_engine():
                     if not config.DRY_RUN:
                         # Cancel all pending orders for active symbol
                         symbol = settings.get('symbol', 'XAUUSD')
-                        orders = mt5.orders_get(symbol=symbol)
+                        resolved_symbol = mt5_connector.resolve_symbol(symbol)
+                        orders = mt5.orders_get(symbol=resolved_symbol)
                         if orders:
                             for order in orders:
                                 cancel_req = {
@@ -189,7 +197,9 @@ def run_engine():
             
             if current_state in ['RUNNING', 'MONITORING', 'PAUSED']:
                 if not config.DRY_RUN:
-                    pos_array = mt5.positions_get(symbol=settings.get('symbol', 'XAUUSD'))
+                    symbol = settings.get('symbol', 'XAUUSD')
+                    resolved_symbol = mt5_connector.resolve_symbol(symbol)
+                    pos_array = mt5.positions_get(symbol=resolved_symbol)
                     open_positions = len(pos_array) if pos_array else 0
                     
                     acc_info = mt5.account_info()
@@ -277,12 +287,13 @@ def run_engine():
 
             # Check for completed M1 Candle
             symbol = settings.get('symbol', 'XAUUSD')
+            resolved_symbol = mt5_connector.resolve_symbol(symbol)
             if config.DRY_RUN:
                 current_minute = int(time.time() // 60) * 60
                 rates = mock_rates(symbol)
                 completed_candle_time = current_minute - 60
             else:
-                rates_array = mt5.copy_rates_from_prev(symbol, mt5.TIMEFRAME_M1, 1, 100)
+                rates_array = mt5.copy_rates_from_pos(resolved_symbol, mt5.TIMEFRAME_M1, 1, 100)
                 if rates_array is None or len(rates_array) == 0:
                     logger.error(f"Failed to fetch rates from MT5: {mt5.last_error()}")
                     continue
