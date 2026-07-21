@@ -63,8 +63,8 @@ def sync_mt5_history_deals():
 
             created_trade = node_client.create_trade(trade_payload)
 
-            # If deal is closed, close it in GTAP DB
-            if out_deal and created_trade:
+            # If deal is closed, close it in GTAP DB only if not already closed
+            if out_deal and created_trade and created_trade.get("status") != "CLOSED":
                 trade_id = created_trade.get("_id")
                 close_iso = datetime.fromtimestamp(out_deal.time, tz=timezone.utc).isoformat()
                 
