@@ -143,7 +143,7 @@ export const SettingsPage = {
             <input type="text" id="settings-telegram-chat" placeholder="-100123456789">
           </div>
 
-          <button type="submit" id="settings-submit-btn" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;" disabled>
+          <button type="submit" id="settings-submit-btn" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">
             <span>Save Configuration</span>
           </button>
         </form>
@@ -317,15 +317,14 @@ export const SettingsPage = {
         document.getElementById('settings-telegram-token').value = settings.telegramBotToken || '';
         document.getElementById('settings-telegram-chat').value = settings.telegramChatId || '';
 
-        // Load servers
-        await fetchServers(settings.broker, settings.server);
+        // Enable save button once settings are loaded
+        submitBtn.disabled = false;
 
         // Populate connection badge
         if (settings.connectionStatus) {
           updateConnectionBadge(settings.connectionStatus, settings.lastConnectionError);
           if (settings.connectionStatus === 'SUCCESS') {
             isConnectionValidated = true;
-            submitBtn.disabled = false;
           }
         }
       }
@@ -403,11 +402,6 @@ export const SettingsPage = {
     // 4. Save Configuration
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      if (!isConnectionValidated) {
-        APP.showToast('You must test and verify connection before saving settings.', 'error');
-        return;
-      }
 
       const lotSize = parseFloat(document.getElementById('settings-lot').value);
       const maxTrades = parseInt(document.getElementById('settings-max-trades').value);
