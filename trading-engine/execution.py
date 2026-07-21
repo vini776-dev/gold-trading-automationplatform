@@ -137,28 +137,50 @@ def execute_order(signal_data: dict, settings: dict):
         }
 
     # ── 5. Send Real Order to MT5 ─────────────────────────────────────────────
-    request = {
-        "action":       mt5.TRADE_ACTION_DEAL,
-        "symbol":       resolved_symbol,
-        "volume":       lot_size,
-        "type":         order_type,
-        "price":        price,
-        "sl":           sl,
-        "tp":           tp,
-        "deviation":    20,
-        "magic":        123456,
-        "comment":      f"GTAP {direction} | {signal_reason[:30]}",
-        "type_time":    mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_IOC,
-    }
+    # Detect supported filling mode from symbol info
+    sym = mt5.symbol_info(resolved_symbol)
+    filling_modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
+    
+    if sym:
+        fm = getattr(sym, 'filling_mode', 0)
+        # 1 = FOK, 2 = IOC, 4 = RETURN (bitmask)
+        preferred = []
+        if fm & 2: preferred.append(mt5.ORDER_FILLING_IOC)
+        if fm & 1: preferred.append(mt5.ORDER_FILLING_FOK)
+        preferred.append(mt5.ORDER_FILLING_RETURN)
+        # Put preferred first, then remaining
+        filling_modes = preferred + [m for m in filling_modes if m not in preferred]
 
-    result = mt5.order_send(request)
+    result = None
+    for fill_type in filling_modes:
+        request = {
+            "action":       mt5.TRADE_ACTION_DEAL,
+            "symbol":       resolved_symbol,
+            "volume":       lot_size,
+            "type":         order_type,
+            "price":        price,
+            "sl":           sl,
+            "tp":           tp,
+            "deviation":    20,
+            "magic":        123456,
+            "comment":      f"GTAP {direction} | {signal_reason[:20]}",
+            "type_time":    mt5.ORDER_TIME_GTC,
+            "type_filling": fill_type,
+        }
+        res = mt5.order_send(request)
+        if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+            result = res
+            break
+        else:
+            err_code = res.retcode if res else "N/A"
+            err_comm = res.comment if res else "No result"
+            logger.warning(f"[Execution] Filling mode {fill_type} rejected ({err_code}: {err_comm}). Trying next filling mode...")
 
     if result is None or result.retcode != mt5.TRADE_RETCODE_DONE:
         retcode = result.retcode if result else "N/A"
         comment = result.comment if result else "No result"
         logger.error(
-            f"[Execution] Order FAILED. "
+            f"[Execution] Order FAILED after trying all filling modes. "
             f"Code: {retcode} | Comment: {comment}"
         )
         return None
