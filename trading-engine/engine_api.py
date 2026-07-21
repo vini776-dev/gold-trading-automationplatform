@@ -29,8 +29,19 @@ class EngineAPIHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(body)))
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        """Handle CORS preflight requests from browser."""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.end_headers()
 
     def do_POST(self):
         if self.path == '/test-connection':
@@ -41,8 +52,71 @@ class EngineAPIHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/health':
             self.send_json(200, {'success': True, 'status': 'engine_api_running'})
+        elif self.path == '/strategy-status':
+            self._handle_strategy_status()
+        elif self.path.startswith('/candles'):
+            self._handle_candles()
         else:
             self.send_json(404, {'success': False, 'error': 'Not found'})
+
+    def _handle_strategy_status(self):
+        """
+        Return real-time strategy filter status and last candle data.
+        Called by the Live Monitor page every few seconds.
+        """
+        try:
+            import _strategy_status_store as store
+            self.send_json(200, store.get_status())
+        except Exception as e:
+            self.send_json(200, {
+                'success': False,
+                'error': str(e),
+                'message': 'Strategy status not yet available. Waiting for first M5 candle.'
+            })
+
+    def _handle_candles(self):
+        """
+        Fetch last N M5 candles from MT5 and return them for the Live Monitor chart.
+        URL: /candles?count=100
+        Returns: { candles: [{time, open, high, low, close, volume}, ...] }
+        """
+        try:
+            import mt5_connector
+            # Parse count from query string (default 120)
+            count = 120
+            if '?' in self.path:
+                qs = self.path.split('?', 1)[1]
+                for part in qs.split('&'):
+                    if part.startswith('count='):
+                        try: count = int(part.split('=', 1)[1])
+                        except: pass
+
+            resolved = mt5_connector.resolve_symbol('XAUUSD')
+            rates    = mt5.copy_rates_from_pos(resolved, mt5.TIMEFRAME_M5, 0, count + 1)
+
+            if rates is None or len(rates) == 0:
+                self.send_json(200, {'success': False, 'candles': [], 'error': 'No candle data from MT5'})
+                return
+
+            # Skip index 0 (currently forming candle) — only return confirmed candles
+            candles = [
+                {
+                    'time':   int(r[0]),
+                    'open':   round(float(r[1]), 2),
+                    'high':   round(float(r[2]), 2),
+                    'low':    round(float(r[3]), 2),
+                    'close':  round(float(r[4]), 2),
+                    'volume': int(r[5]),
+                }
+                for r in rates[:-1]   # exclude forming candle
+            ]
+
+            self.send_json(200, {'success': True, 'candles': candles})
+
+        except Exception as e:
+            logger.error(f"[engine_api] /candles error: {e}")
+            self.send_json(200, {'success': False, 'candles': [], 'error': str(e)})
+
 
     def _handle_test_connection(self):
         try:

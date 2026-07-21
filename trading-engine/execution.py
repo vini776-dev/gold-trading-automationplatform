@@ -1,200 +1,346 @@
+"""
+GTAP Trading Execution Module
+==============================
+Handles all trade execution and monitoring functions.
+
+Responsibilities
+----------------
+- execute_order()         : Place a new trade on MT5 based on a strategy signal.
+- monitor_active_trades() : Detect trades closed on MT5 and report them to Node.js.
+- fetch_close_details()   : Query MT5 history for a closed trade's details.
+
+Stop Loss / Take Profit Calculation (V1 Specification)
+-------------------------------------------------------
+BUY  : SL = Entry Candle Low  | TP = Entry Price + (Risk × RR Ratio)
+SELL : SL = Entry Candle High | TP = Entry Price - (Risk × RR Ratio)
+
+Risk is measured in price units (not fixed points).
+RR Ratio is taken from the strategy signal (default 1:2).
+
+No fixed-point SL buffers are used in V1.
+"""
+
 import time
 import MetaTrader5 as mt5
 import config
 import node_client
 from logger import logger
 
-def execute_order(signal, settings):
+
+def execute_order(signal_data: dict, settings: dict):
     """
-    Sends order request to MT5 based on strategy signals and settings.
-    Supports DRY_RUN mode for risk-free testing.
+    Place a market order on MT5 based on a structured signal from the strategy.
+
+    Args:
+        signal_data (dict): Signal dict from strategy. Must contain:
+                            direction, entry_candle_high, entry_candle_low,
+                            entry_candle_close, risk_reward_ratio, confidence, reason.
+        settings    (dict): Current dashboard settings containing:
+                            symbol, lotSize, broker, accountNumber, server.
+
+    Returns:
+        dict: Trade payload (for Node.js) if order was successfully placed.
+        None: If order failed or was rejected.
     """
-    symbol = settings.get('symbol', 'XAUUSD')
+    direction         = signal_data.get("direction")        # "BUY" or "SELL"
+    entry_candle_high = signal_data.get("entry_candle_high", 0.0)
+    entry_candle_low  = signal_data.get("entry_candle_low", 0.0)
+    confidence        = signal_data.get("confidence", 0.0)
+    signal_reason     = signal_data.get("reason", "")
+    rr_ratio          = signal_data.get("risk_reward_ratio", 2.0)
+
+    if direction not in ("BUY", "SELL"):
+        logger.error(f"[Execution] Invalid signal direction: '{direction}'. Aborting.")
+        return None
+
+    symbol = settings.get("symbol", "XAUUSD")
     import mt5_connector
     resolved_symbol = mt5_connector.resolve_symbol(symbol)
-    lot_size = settings.get('lotSize', 0.20)
-    sl_buffer = settings.get('stopLossBuffer', 0.02)
+    lot_size        = float(settings.get("lotSize", 0.01))
+    strategy_name   = settings.get("strategyName", "EMA Engulfing (V1)")
 
-    # 1. Fetch Current Market Prices
+    # ── 1. Fetch Current Market Prices ────────────────────────────────────────
     if config.DRY_RUN:
-        class MockSymbolInfo:
-            bid = 2000.0
-            ask = 2000.5
-        symbol_info = MockSymbolInfo()
+        # In DRY_RUN mode, use a realistic mock price for XAUUSD
+        class _MockTick:
+            bid = 2320.00
+            ask = 2320.30
+        symbol_info = _MockTick()
     else:
         symbol_info = mt5.symbol_info_tick(resolved_symbol)
-        if not symbol_info:
-            logger.error(f"Failed to get symbol tick info for {resolved_symbol} (original: {symbol})")
+        if symbol_info is None:
+            logger.error(
+                f"[Execution] Failed to fetch symbol tick for '{resolved_symbol}'. "
+                f"MT5 error: {mt5.last_error()}"
+            )
             return None
 
-    if signal == "BUY":
-        price = symbol_info.ask
-        sl = price - sl_buffer
-        tp = price + (sl_buffer * 2.0) # 1:2 RR ratio
+    # ── 2. Calculate Price, SL, and TP (Candle-Based — V1 Specification) ──────
+    if direction == "BUY":
+        price      = symbol_info.ask
+        sl         = entry_candle_low          # BUY SL = Entry Candle Low
+        risk       = price - sl                # Risk in price units
+        tp         = price + (risk * rr_ratio) # TP = Price + Risk × RR
         order_type = mt5.ORDER_TYPE_BUY
-    elif signal == "SELL":
-        price = symbol_info.bid
-        sl = price + sl_buffer
-        tp = price - (sl_buffer * 2.0)
+
+    else:  # SELL
+        price      = symbol_info.bid
+        sl         = entry_candle_high         # SELL SL = Entry Candle High
+        risk       = sl - price                # Risk in price units
+        tp         = price - (risk * rr_ratio) # TP = Price - Risk × RR
         order_type = mt5.ORDER_TYPE_SELL
-    else:
+
+    # ── 3. Safety Validation ──────────────────────────────────────────────────
+    if risk <= 0:
+        logger.error(
+            f"[Execution] Invalid SL/TP: risk = {risk:.5f} (must be > 0). "
+            f"Price: {price:.3f}, SL: {sl:.3f}. Order rejected."
+        )
         return None
 
-    logger.info(f"Preparing {signal} order for {symbol} | Price: {price:.2f}, SL: {sl:.2f}, TP: {tp:.2f}, Lot: {lot_size}")
+    if tp <= 0 or sl <= 0:
+        logger.error(
+            f"[Execution] Invalid SL ({sl:.3f}) or TP ({tp:.3f}). Order rejected."
+        )
+        return None
 
-    # 2. Dry Run Mocking
+    logger.info(
+        f"[Execution] Preparing {direction} order — "
+        f"Symbol: {symbol} | Price: {price:.3f} | "
+        f"SL: {sl:.3f} (candle {'low' if direction == 'BUY' else 'high'}) | "
+        f"TP: {tp:.3f} | "
+        f"Risk: {risk:.3f} pts | RR: 1:{rr_ratio} | "
+        f"Lot: {lot_size} | Confidence: {confidence:.1%}"
+    )
+
+    # ── 4. DRY_RUN Mode: Return mock trade without sending to MT5 ─────────────
     if config.DRY_RUN:
         mock_ticket = int(time.time())
-        logger.info(f"[DRY_RUN] Mock order successfully placed. Ticket: {mock_ticket}")
+        logger.info(
+            f"[Execution][DRY_RUN] Mock order placed successfully. "
+            f"Ticket: {mock_ticket} | {direction} {symbol} @ {price:.3f}"
+        )
         return {
-            "mt5Ticket": mock_ticket,
-            "symbol": symbol,
-            "orderType": signal,
-            "lotSize": lot_size,
-            "entryPrice": price,
-            "stopLoss": sl,
-            "takeProfit": tp,
-            "broker": "XM (Mock)",
-            "tradeSource": "bot",
-            "openTime": new_date_iso()
+            "mt5Ticket":        mock_ticket,
+            "symbol":           symbol,
+            "orderType":        direction,
+            "lotSize":          lot_size,
+            "entryPrice":       price,
+            "stopLoss":         sl,
+            "takeProfit":       tp,
+            "broker":           "XM (Mock)",
+            "tradeSource":      "bot",
+            "openTime":         _new_date_iso(),
+            "strategyName":     strategy_name,
+            "signalConfidence": confidence,
+            "signalReason":     signal_reason,
         }
 
-    # 3. Assemble MT5 Order request
+    # ── 5. Send Real Order to MT5 ─────────────────────────────────────────────
     request = {
-        "action": mt5.TRADE_ACTION_DEAL,
-        "symbol": resolved_symbol,
-        "volume": lot_size,
-        "type": order_type,
-        "price": price,
-        "sl": sl,
-        "tp": tp,
-        "deviation": 20,
-        "magic": 123456,
-        "comment": "GTAP Auto Trade",
-        "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_IOC
+        "action":       mt5.TRADE_ACTION_DEAL,
+        "symbol":       resolved_symbol,
+        "volume":       lot_size,
+        "type":         order_type,
+        "price":        price,
+        "sl":           sl,
+        "tp":           tp,
+        "deviation":    20,
+        "magic":        123456,
+        "comment":      f"GTAP {direction} | {signal_reason[:30]}",
+        "type_time":    mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_IOC,
     }
 
-    # 4. Send Order to MT5
     result = mt5.order_send(request)
-    if result.retcode != mt5.TRADE_RETCODE_DONE:
-        logger.error(f"Order execution failed, code: {result.retcode}, comment: {result.comment}")
+
+    if result is None or result.retcode != mt5.TRADE_RETCODE_DONE:
+        retcode = result.retcode if result else "N/A"
+        comment = result.comment if result else "No result"
+        logger.error(
+            f"[Execution] Order FAILED. "
+            f"Code: {retcode} | Comment: {comment}"
+        )
         return None
 
-    logger.info(f"Order successfully executed on MT5. Ticket: {result.order}")
+    logger.info(
+        f"[Execution] ✅ Order EXECUTED on MT5. "
+        f"Ticket: {result.order} | {direction} {symbol} @ {price:.3f} | "
+        f"SL: {sl:.3f} | TP: {tp:.3f}"
+    )
+
     return {
-        "mt5Ticket": result.order,
-        "symbol": symbol,
-        "orderType": signal,
-        "lotSize": lot_size,
-        "entryPrice": price,
-        "stopLoss": sl,
-        "takeProfit": tp,
-        "broker": settings.get('broker', 'XM'),
-        "tradeSource": "bot",
-        "openTime": new_date_iso()
+        "mt5Ticket":        result.order,
+        "symbol":           symbol,
+        "orderType":        direction,
+        "lotSize":          lot_size,
+        "entryPrice":       price,
+        "stopLoss":         sl,
+        "takeProfit":       tp,
+        "broker":           settings.get("broker", "XM"),
+        "tradeSource":      "bot",
+        "openTime":         _new_date_iso(),
+        "strategyName":     strategy_name,
+        "signalConfidence": confidence,
+        "signalReason":     signal_reason,
     }
 
-def monitor_active_trades(active_trades, settings):
-    """
-    Checks if active trades are still open on MT5.
-    If closed (SL/TP hit), reports it to Node.js backend.
-    """
-    if not active_trades:
-        return
 
-    # In DRY_RUN mode, simulate trade exits (SL/TP hit) randomly
+def monitor_active_trades(active_trades: list, settings: dict) -> list:
+    """
+    Check if any active trades have been closed on MT5 (via SL/TP hit or manual close).
+    When a trade is detected as closed, report it to the Node.js backend.
+
+    Args:
+        active_trades (list): Active trade records from the Node.js database.
+        settings      (dict): Current dashboard settings.
+
+    Returns:
+        list: Close events for trades that were closed this cycle.
+              Each event dict contains: ticket, profitLoss, closeReason.
+              Used by main.py to update daily_stats (consecutive losses, cooldown).
+    """
+    close_events = []
+
+    if not active_trades:
+        return close_events
+
+    # ── DRY_RUN Mode: Simulate random trade exits ─────────────────────────────
     if config.DRY_RUN:
         import random
         for trade in active_trades:
-            # 20% chance to close trade per check cycle
-            if random.random() < 0.20:
-                ticket = trade.get('mt5Ticket')
-                trade_db_id = trade.get('_id')
-                is_profit = random.choice([True, False])
-                pnl = random.uniform(10.0, 50.0) if is_profit else random.uniform(-10.0, -30.0)
-                reason = "TP" if is_profit else "SL"
-                
-                logger.info(f"[DRY_RUN] Mock closing trade {ticket} via {reason}. PnL: ${pnl:.2f}")
+            # Simulate a ~15% chance per monitoring cycle that a trade closes
+            if random.random() < 0.15:
+                ticket      = trade.get("mt5Ticket")
+                trade_db_id = trade.get("_id")
+                is_profit   = random.choice([True, False])
+                pnl         = random.uniform(15.0, 60.0) if is_profit else random.uniform(-10.0, -35.0)
+                reason      = "TP" if is_profit else "SL"
+                open_time   = trade.get("openTime", _new_date_iso())
+                duration    = int(random.uniform(300, 1800))
+
+                logger.info(
+                    f"[Execution][DRY_RUN] Trade {ticket} closed via {reason}. "
+                    f"PnL: ${pnl:.2f}"
+                )
+
                 close_payload = {
-                    "exitPrice": trade.get('entryPrice') + (pnl / 100.0),
-                    "closeTime": new_date_iso(),
-                    "profitLoss": pnl,
+                    "exitPrice":   trade.get("entryPrice", 2320.0) + (pnl / 100.0),
+                    "closeTime":   _new_date_iso(),
+                    "profitLoss":  round(pnl, 2),
                     "closeReason": reason,
-                    "duration": int(random.uniform(60, 300))
+                    "duration":    duration,
                 }
                 node_client.close_trade(trade_db_id, close_payload)
-        return
 
-    # Fetch all open positions on MT5
+                close_events.append({
+                    "ticket":      ticket,
+                    "profitLoss":  pnl,
+                    "closeReason": reason,
+                })
+        return close_events
+
+    # ── Live Mode: Query MT5 open positions ───────────────────────────────────
     positions = mt5.positions_get()
     if positions is None:
-        logger.error(f"Failed to get open positions from MT5: {mt5.last_error()}")
-        return
+        logger.error(f"[Execution] Failed to fetch open positions from MT5: {mt5.last_error()}")
+        return close_events
 
-    # Create a lookup map of active tickets on MT5
-    open_tickets = {pos.ticket: pos for pos in positions}
+    open_ticket_map = {pos.ticket: pos for pos in positions}
 
     for trade in active_trades:
-        ticket = trade.get('mt5Ticket')
-        trade_db_id = trade.get('_id')
+        ticket      = trade.get("mt5Ticket")
+        trade_db_id = trade.get("_id")
 
-        if ticket not in open_tickets:
-            # Trade has been closed on MT5 (SL/TP or manual close)
-            logger.info(f"Active trade ticket {ticket} is no longer open in MT5. Querying history to close on Node...")
+        if ticket not in open_ticket_map:
+            # Trade is no longer open on MT5 — SL/TP hit or manually closed
+            logger.info(
+                f"[Execution] Trade {ticket} is no longer open on MT5. "
+                f"Querying history to record close details..."
+            )
             close_details = fetch_close_details(ticket)
-            
-            if close_details:
-                # Update status on Node
-                node_client.close_trade(trade_db_id, close_details)
-            else:
-                logger.error(f"Failed to find close history for ticket {ticket}")
 
-def fetch_close_details(ticket):
+            if close_details:
+                node_client.close_trade(trade_db_id, close_details)
+                close_events.append({
+                    "ticket":      ticket,
+                    "profitLoss":  close_details.get("profitLoss", 0.0),
+                    "closeReason": close_details.get("closeReason", "Unknown"),
+                })
+            else:
+                logger.error(f"[Execution] Could not retrieve close details for ticket {ticket}.")
+
+    return close_events
+
+
+def fetch_close_details(ticket: int) -> dict | None:
     """
-    Queries MT5 history to retrieve details of a closed deal.
+    Query MT5 deal history to retrieve closing details for a trade.
+
+    Args:
+        ticket (int): MT5 order ticket number.
+
+    Returns:
+        dict: Close details (exitPrice, closeTime, closeReason, profitLoss, duration).
+        None: If no history found.
     """
-    # Fetch historical deals for this ticket
-    from_date = int(time.time()) - 24 * 60 * 60 # Check last 24h
-    to_date = int(time.time()) + 60
-    
-    history_deals = mt5.history_deals_get(from_date, to_date, ticket=ticket)
+    now         = int(time.time())
+    from_date   = now - 24 * 60 * 60   # Last 24 hours
+
+    history_deals = mt5.history_deals_get(from_date, now + 60, ticket=ticket)
+
     if not history_deals:
-        # Check from start of day if 24h is not enough
+        # Extend search range if trade is older than 24 hours
         history_deals = mt5.history_deals_get(ticket=ticket)
 
     if not history_deals:
+        logger.warning(f"[Execution] No deal history found for ticket {ticket}.")
         return None
 
-    # Filter for the closing deal (the one with entry status Out)
-    # In MT5 history, the opening deal has entry=0 (In) and closing deal has entry=1 (Out)
+    # The opening deal has entry=0 (IN), closing deal has entry=1 (OUT)
+    opening_deal = None
     closing_deal = None
+
     for deal in history_deals:
-        if deal.entry == 1: # Out
+        entry_type = getattr(deal, "entry", -1)
+        if entry_type == 0:
+            opening_deal = deal
+        elif entry_type == 1:
             closing_deal = deal
-            break
 
     if not closing_deal:
-        # Fallback to the latest deal found
+        # Fallback: use the last deal in history
         closing_deal = history_deals[-1]
 
-    # Map closing reason
-    reason_map = {
-        3: "SL",
-        4: "TP"
-    }
+    # Map MT5 close reason codes
     # mt5.DEAL_REASON_SL = 3, mt5.DEAL_REASON_TP = 4
-    reason_code = getattr(closing_deal, 'reason', 0)
+    reason_map = {3: "SL", 4: "TP"}
+    reason_code = getattr(closing_deal, "reason", 0)
     close_reason = reason_map.get(reason_code, "Manual")
 
+    # Calculate duration
+    open_time_unix  = getattr(opening_deal, "time", 0) if opening_deal else 0
+    close_time_unix = getattr(closing_deal, "time", now)
+    duration        = int(close_time_unix - open_time_unix) if open_time_unix > 0 else 0
+
     return {
-        "exitPrice": closing_deal.price,
-        "closeTime": time_to_iso(closing_deal.time),
-        "closeReason": close_reason
+        "exitPrice":   float(getattr(closing_deal, "price", 0.0)),
+        "closeTime":   _time_to_iso(close_time_unix),
+        "closeReason": close_reason,
+        "profitLoss":  float(getattr(closing_deal, "profit", 0.0)),
+        "duration":    duration,
     }
 
-def time_to_iso(timestamp):
-    return time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime(timestamp))
 
-def new_date_iso():
-    return time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+# ─────────────────────────────────────────────────────────────────────────────
+# UTILITY FUNCTIONS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _time_to_iso(timestamp: int) -> str:
+    """Convert a Unix timestamp to ISO 8601 UTC string."""
+    return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(timestamp))
+
+
+def _new_date_iso() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
+    return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())

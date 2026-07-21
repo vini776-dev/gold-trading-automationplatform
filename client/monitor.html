@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GTAP – Live Strategy Monitor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    :root {
+      --bg:        #0a0d14;
+      --bg2:       #111520;
+      --bg3:       #181d2e;
+      --border:    #1e2640;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --accent:    #6366f1;
+      --buy:       #10b981;
+      --sell:      #f43f5e;
+      --warn:      #f59e0b;
+      --pass:      #10b981;
+      --block:     #f43f5e;
+      --pending:   #64748b;
+      --glow-buy:  0 0 20px rgba(16,185,129,0.3);
+      --glow-sell: 0 0 20px rgba(244,63,94,0.3);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Top Bar ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 18px; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .logo svg { flex-shrink: 0; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .live-badge {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(16,185,129,0.12);
+      border: 1px solid rgba(16,185,129,0.3);
+      color: var(--pass); padding: 4px 10px;
+      border-radius: 20px; font-size: 12px; font-weight: 600;
+    }
+    .live-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--pass);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.4; transform: scale(0.8); }
+    }
+    #last-update { color: var(--muted); font-size: 12px; }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 0;
+      height: calc(100vh - 57px);
+    }
+
+    /* ── Chart Panel ── */
+    .chart-panel {
+      display: flex; flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .chart-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .symbol-info { display: flex; align-items: center; gap: 12px; }
+    .symbol-name { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+    .timeframe-badge {
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.35);
+      color: var(--accent); padding: 2px 8px;
+      border-radius: 6px; font-size: 11px; font-weight: 700;
+    }
+    .price-display {
+      display: flex; flex-direction: column; align-items: flex-end;
+    }
+    #current-price {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px; font-weight: 700;
+    }
+    .ema-labels { display: flex; gap: 12px; margin-top: 2px; }
+    .ema-label { font-size: 11px; font-weight: 500; }
+    .ema9-color  { color: #f59e0b; }
+    .ema15-color { color: #a78bfa; }
+    #chart-container {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
+    #chart { width: 100%; height: 100%; }
+
+    .chart-legend {
+      position: absolute;
+      top: 10px; left: 14px;
+      display: flex; flex-direction: column; gap: 4px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 500;
+      background: rgba(10,13,20,0.75);
+      padding: 3px 7px; border-radius: 5px;
+    }
+    .legend-dot {
+      width: 10px; height: 2px; border-radius: 2px;
+    }
+
+    /* ── Right Panel ── */
+    .right-panel {
+      display: flex; flex-direction: column;
+      overflow-y: auto; background: var(--bg2);
+    }
+    .right-panel::-webkit-scrollbar { width: 4px; }
+    .right-panel::-webkit-scrollbar-track { background: transparent; }
+    .right-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ── Section ── */
+    .section {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      color: var(--muted); text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ── Signal Card ── */
+    .signal-card {
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      border: 1px solid var(--border);
+      transition: all 0.4s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .signal-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      opacity: 0.07;
+      pointer-events: none;
+    }
+    .signal-card.buy   { border-color: rgba(16,185,129,0.4); box-shadow: var(--glow-buy); }
+    .signal-card.buy::before   { background: var(--buy); }
+    .signal-card.sell  { border-color: rgba(244,63,94,0.4); box-shadow: var(--glow-sell); }
+    .signal-card.sell::before  { background: var(--sell); }
+    .signal-card.waiting { border-color: rgba(100,116,139,0.3); }
+    .signal-card.blocked { border-color: rgba(244,63,94,0.2); }
+
+    .signal-icon { font-size: 28px; margin-bottom: 6px; }
+    .signal-text { font-size: 22px; font-weight: 800; letter-spacing: 1px; }
+    .signal-text.buy  { color: var(--buy); }
+    .signal-text.sell { color: var(--sell); }
+    .signal-text.waiting { color: var(--muted); }
+    .signal-text.blocked { color: #f97316; }
+
+    .signal-reason {
+      font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.4;
+    }
+    .confidence-bar {
+      margin-top: 10px;
+      height: 5px; border-radius: 99px;
+      background: var(--border);
+      overflow: hidden;
+    }
+    .confidence-fill {
+      height: 100%; border-radius: 99px;
+      background: linear-gradient(90deg, var(--accent), #8b5cf6);
+      transition: width 0.6s ease;
+    }
+    #confidence-label { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+    /* ── Indicators Row ── */
+    .indicators-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .indicator-box {
+      background: var(--bg3); border-radius: 8px;
+      padding: 10px 10px 8px;
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+    .indicator-box .label { font-size: 9px; font-weight: 700; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+    .indicator-box .value { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; }
+    .ema9-val  { color: #f59e0b; }
+    .ema15-val { color: #a78bfa; }
+    .atr-val   { color: #38bdf8; }
+
+    /* ── Trend Badge ── */
+    .trend-row { display: flex; align-items: center; justify-content: space-between; }
+    .trend-badge {
+      padding: 4px 14px; border-radius: 20px;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+    }
+    .trend-badge.buy  { background: rgba(16,185,129,0.15); color: var(--buy); border: 1px solid rgba(16,185,129,0.3); }
+    .trend-badge.sell { background: rgba(244,63,94,0.15); color: var(--sell); border: 1px solid rgba(244,63,94,0.3); }
+    .trend-badge.flat { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid rgba(100,116,139,0.3); }
+
+    /* ── Filter List ── */
+    .filter-list { display: flex; flex-direction: column; gap: 7px; }
+    .filter-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--bg3); border-radius: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      transition: border-color 0.3s ease;
+    }
+    .filter-row.pass    { border-left: 3px solid var(--pass); }
+    .filter-row.blocked { border-left: 3px solid var(--block); }
+    .filter-row.pending { border-left: 3px solid var(--pending); }
+
+    .filter-name  { font-size: 12px; font-weight: 600; }
+    .filter-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+    .filter-badge {
+      font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 99px; letter-spacing: 0.5px;
+    }
+    .filter-badge.pass    { background: rgba(16,185,129,0.15); color: var(--pass); }
+    .filter-badge.blocked { background: rgba(244,63,94,0.15); color: var(--block); }
+    .filter-badge.pending { background: rgba(100,116,139,0.12); color: var(--muted); }
+    .filter-detail { font-size: 9px; color: var(--muted); text-align: right; }
+
+    /* ── Stats Row ── */
+    .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-box {
+      background: var(--bg3); border-radius: 8px;
+      padding: 10px 12px; border: 1px solid var(--border);
+    }
+    .stat-box .s-label { font-size: 9px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-box .s-value { font-size: 18px; font-weight: 700; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+
+    /* ── Error overlay ── */
+    #error-banner {
+      display: none;
+      background: rgba(244,63,94,0.1);
+      border: 1px solid rgba(244,63,94,0.3);
+      border-radius: 8px; padding: 10px 14px;
+      font-size: 12px; color: #f87171; margin: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="url(#g)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <defs><linearGradient id="g" x1="2" y1="2" x2="22" y2="22"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
+    </svg>
+    GTAP Live Monitor
+  </div>
+  <div class="header-right">
+    <span id="last-update">Connecting…</span>
+    <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ───── Chart Panel ───── -->
+  <div class="chart-panel">
+    <div class="chart-header">
+      <div class="symbol-info">
+        <span class="symbol-name">XAUUSD</span>
+        <span class="timeframe-badge">M5</span>
+      </div>
+      <div class="price-display">
+        <span id="current-price" style="color:var(--text)">—</span>
+        <div class="ema-labels">
+          <span class="ema-label ema9-color">EMA9: <span id="ema9-val">—</span></span>
+          <span class="ema-label ema15-color">EMA15: <span id="ema15-val">—</span></span>
+          <span class="ema-label" style="color:#38bdf8">ATR: <span id="atr-val">—</span></span>
+        </div>
+      </div>
+    </div>
+    <div id="chart-container">
+      <div id="chart"></div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#f59e0b;height:2px;width:14px"></div> EMA 9</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#a78bfa;height:2px;width:14px"></div> EMA 15</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── Right Panel ───── -->
+  <div class="right-panel">
+
+    <div id="error-banner">Engine se connection nahi mila. Check karein ki Python engine chal raha hai.</div>
+
+    <!-- Signal -->
+    <div class="section">
+      <div class="section-title">Current Signal</div>
+      <div class="signal-card waiting" id="signal-card">
+        <div class="signal-icon" id="signal-icon">⏳</div>
+        <div class="signal-text waiting" id="signal-text">WAITING</div>
+        <div class="signal-reason" id="signal-reason">Pehli M5 candle ka intezaar…</div>
+        <div class="confidence-bar">
+          <div class="confidence-fill" id="conf-fill" style="width:0%"></div>
+        </div>
+        <div id="confidence-label">Confidence: —</div>
+      </div>
+    </div>
+
+    <!-- Indicators -->
+    <div class="section">
+      <div class="section-title">Indicators</div>
+      <div class="indicators-row">
+        <div class="indicator-box"><div class="label">EMA 9</div><div class="value ema9-val" id="ema9-box">—</div></div>
+        <div class="indicator-box"><div class="label">EMA 15</div><div class="value ema15-val" id="ema15-box">—</div></div>
+        <div class="indicator-box"><div class="label">ATR 14</div><div class="value atr-val" id="atr-box">—</div></div>
+      </div>
+      <div class="trend-row" style="margin-top:10px">
+        <span style="font-size:12px;color:var(--muted)">Trend Direction</span>
+        <div class="trend-badge flat" id="trend-badge">—</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="section">
+      <div class="section-title">Strategy Filters</div>
+      <div class="filter-list" id="filter-list">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Daily Stats -->
+    <div class="section">
+      <div class="section-title">Today's Stats</div>
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="s-label">Trades Today</div>
+          <div class="s-value" id="stat-trades">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="s-label">Consec. Losses</div>
+          <div class="s-value" id="stat-losses">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="s-label">Spread</div>
+          <div class="s-value" id="stat-spread">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="s-label">Open Trades</div>
+          <div class="s-value" id="stat-open">—</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /right-panel -->
+</div><!-- /layout -->
+
+<script>
+// ─── Config ───────────────────────────────────────────────────────────────
+const ENGINE_API = 'http://127.0.0.1:5001/strategy-status';
+const POLL_MS    = 5000;   // Refresh every 5 seconds
+
+// ─── Chart Setup ──────────────────────────────────────────────────────────
+const chartEl   = document.getElementById('chart');
+const container = document.getElementById('chart-container');
+
+const chart = LightweightCharts.createChart(chartEl, {
+  width:  container.clientWidth,
+  height: container.clientHeight,
+  layout:     { background: { color: '#0a0d14' }, textColor: '#64748b' },
+  grid:       { vertLines: { color: '#1e2640' }, horzLines: { color: '#1e2640' } },
+  crosshair:  { mode: LightweightCharts.CrosshairMode.Normal },
+  rightPriceScale: { borderColor: '#1e2640' },
+  timeScale:  { borderColor: '#1e2640', timeVisible: true },
+});
+
+const candleSeries = chart.addCandlestickSeries({
+  upColor:       '#10b981', downColor:    '#f43f5e',
+  borderUpColor: '#10b981', borderDownColor: '#f43f5e',
+  wickUpColor:   '#10b981', wickDownColor:   '#f43f5e',
+});
+
+const ema9Series = chart.addLineSeries({
+  color: '#f59e0b', lineWidth: 1.5,
+  priceLineVisible: false, lastValueVisible: false,
+});
+const ema15Series = chart.addLineSeries({
+  color: '#a78bfa', lineWidth: 1.5,
+  priceLineVisible: false, lastValueVisible: false,
+});
+
+window.addEventListener('resize', () => {
+  chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+});
+
+// ─── Fetch M5 Candles from Engine API (direct MT5 data) ──────────────────
+async function loadCandles() {
+  try {
+    const r = await fetch('http://127.0.0.1:5001/candles?count=120', {
+      signal: AbortSignal.timeout(6000)
+    });
+    const data = await r.json();
+    if (data.success && data.candles && data.candles.length > 0) {
+      candleSeries.setData(data.candles);
+      // Fit chart to show all data on first load
+      chart.timeScale().fitContent();
+    }
+  } catch(e) {
+    // Candles will load on next poll if MT5 is connected
+    console.warn('Candles not yet available:', e.message);
+  }
+}
+
+// ─── Filter Config ────────────────────────────────────────────────────────
+const FILTERS = [
+  { key: 'sideways',    label: '📊 Sideways Market' },
+  { key: 'session',     label: '🕐 Trading Session' },
+  { key: 'position',    label: '📋 Open Position' },
+  { key: 'daily_limit', label: '📅 Daily Limit' },
+  { key: 'cons_losses', label: '🛡️ Consec. Losses' },
+  { key: 'cooldown',    label: '⏱️ Cooldown' },
+  { key: 'spread',      label: '📡 Spread' },
+  { key: 'pullback',    label: '🎯 Pullback Zone' },
+  { key: 'engulfing',   label: '🕯️ Engulfing Pattern' },
+];
+
+function renderFilters(filtersData) {
+  const list = document.getElementById('filter-list');
+  list.innerHTML = FILTERS.map(f => {
+    const fd     = filtersData?.[f.key] || { status: 'PENDING', detail: '' };
+    const st     = (fd.status || 'PENDING').toLowerCase();
+    const badge  = st === 'pass'    ? 'PASS'
+                 : st === 'blocked' ? 'BLOCKED'
+                 : 'PENDING';
+    const cls    = st === 'pass'    ? 'pass'
+                 : st === 'blocked' ? 'blocked'
+                 : 'pending';
+    return `
+      <div class="filter-row ${cls}">
+        <span class="filter-name">${f.label}</span>
+        <div class="filter-right">
+          <span class="filter-badge ${cls}">${badge}</span>
+          ${fd.detail ? `<span class="filter-detail">${fd.detail}</span>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function updateSignalCard(signal, reason, confidence) {
+  const card = document.getElementById('signal-card');
+  const icon = document.getElementById('signal-icon');
+  const text = document.getElementById('signal-text');
+  const rsn  = document.getElementById('signal-reason');
+  const fill = document.getElementById('conf-fill');
+  const clbl = document.getElementById('confidence-label');
+
+  // Reset classes
+  card.className = 'signal-card';
+  text.className = 'signal-text';
+
+  if (signal === 'BUY') {
+    card.classList.add('buy');
+    text.classList.add('buy');
+    icon.textContent = '🚀';
+    text.textContent = '▲ BUY';
+  } else if (signal === 'SELL') {
+    card.classList.add('sell');
+    text.classList.add('sell');
+    icon.textContent = '📉';
+    text.textContent = '▼ SELL';
+  } else if (signal === 'BLOCKED') {
+    card.classList.add('blocked');
+    text.classList.add('blocked');
+    icon.textContent = '🚫';
+    text.textContent = 'BLOCKED';
+  } else {
+    card.classList.add('waiting');
+    text.classList.add('waiting');
+    icon.textContent = '⏳';
+    text.textContent = 'SCANNING…';
+  }
+
+  rsn.textContent = reason || '—';
+
+  const pct = confidence ? Math.round(confidence * 100) : 0;
+  fill.style.width = pct + '%';
+  clbl.textContent = pct > 0 ? `Confidence: ${pct}%` : 'Confidence: —';
+}
+
+function updateTrend(trend) {
+  const el = document.getElementById('trend-badge');
+  el.className = 'trend-badge';
+  if (trend === 'BUY')       { el.classList.add('buy');  el.textContent = '▲ BUY Trend'; }
+  else if (trend === 'SELL') { el.classList.add('sell'); el.textContent = '▼ SELL Trend'; }
+  else                       { el.classList.add('flat'); el.textContent = '— Detecting…'; }
+}
+
+// ─── Main Poll Loop ────────────────────────────────────────────────────────
+let chartReady = false;
+let ema9Buf = [], ema15Buf = [];
+
+async function poll() {
+  try {
+    const r = await fetch(ENGINE_API, { signal: AbortSignal.timeout(4000) });
+    const data = await r.json();
+
+    document.getElementById('error-banner').style.display = 'none';
+
+    // Last update time
+    if (data.last_updated) {
+      const d = new Date(data.last_updated);
+      document.getElementById('last-update').textContent =
+        'Updated: ' + d.toLocaleTimeString('en-IN', { hour12: true });
+    }
+
+    // Indicators
+    const e9  = data.ema9   ?? '—';
+    const e15 = data.ema15  ?? '—';
+    const atr = data.atr    ?? '—';
+    const prc = data.current_price ?? '—';
+
+    document.getElementById('ema9-val').textContent  = e9;
+    document.getElementById('ema15-val').textContent = e15;
+    document.getElementById('atr-val').textContent   = atr;
+    document.getElementById('ema9-box').textContent  = e9;
+    document.getElementById('ema15-box').textContent = e15;
+    document.getElementById('atr-box').textContent   = atr;
+
+    // Price
+    const priceEl = document.getElementById('current-price');
+    priceEl.textContent = prc !== '—' ? prc.toFixed(2) : '—';
+    if (data.trend === 'BUY')       priceEl.style.color = 'var(--buy)';
+    else if (data.trend === 'SELL') priceEl.style.color = 'var(--sell)';
+    else                            priceEl.style.color = 'var(--text)';
+
+    // Chart EMA lines — append new point each poll
+    if (data.candle_time && e9 !== '—') {
+      const t = data.candle_time;
+      ema9Buf.push({ time: t, value: e9 });
+      ema15Buf.push({ time: t, value: e15 });
+      // Deduplicate and keep last 100
+      const dedup = arr => [...new Map(arr.map(x => [x.time, x])).values()].slice(-100);
+      ema9Buf  = dedup(ema9Buf);
+      ema15Buf = dedup(ema15Buf);
+      ema9Series.setData(ema9Buf);
+      ema15Series.setData(ema15Buf);
+    }
+
+    // Trend
+    updateTrend(data.trend);
+
+    // Signal card
+    updateSignalCard(data.signal, data.signal_reason, data.confidence);
+
+    // Filters
+    renderFilters(data.filters);
+
+    // Stats
+    document.getElementById('stat-trades').textContent = data.trades_today ?? '0';
+    document.getElementById('stat-losses').textContent = data.consecutive_losses ?? '0';
+    document.getElementById('stat-spread').textContent = data.spread_pts ? data.spread_pts + ' pts' : '—';
+    document.getElementById('stat-open').textContent   = data.active_trades ?? '0';
+
+  } catch(e) {
+    document.getElementById('error-banner').style.display = 'block';
+    document.getElementById('last-update').textContent = 'Disconnected';
+  }
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+renderFilters({});   // Empty initial state
+loadCandles();       // Load chart immediately
+poll();              // First status poll
+setInterval(poll, POLL_MS);                   // Poll strategy status every 5s
+setInterval(loadCandles, 5 * 60 * 1000);     // Refresh candles every 5 minutes
+</script>
+</body>
+</html>
