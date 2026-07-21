@@ -201,9 +201,12 @@ class EMAEngulfingStrategy:
             if _store_available:
                 _store.update(status)
 
+        demo_mode = market_context.get("demo_mode", False)
+
         # Base status template
         _status = {
             "engine_running":   True,
+            "demo_mode":        demo_mode,
             "candle_time":      market_context.get("current_candle_time", 0),
             "spread_pts":       market_context.get("spread_points", 0),
             "active_trades":    market_context.get("active_trade_count", 0),
@@ -281,13 +284,14 @@ class EMAEngulfingStrategy:
 
         # ── Step 2: Sideways Filter ───────────────────────────────────────────
         ema_distance       = abs(ema9 - ema15)
-        sideways_threshold = atr * self.config["sideways_atr_threshold"]
+        threshold_factor   = 0.05 if demo_mode else self.config["sideways_atr_threshold"]
+        sideways_threshold = atr * threshold_factor
 
         if ema_distance < sideways_threshold:
             logger.info(
                 f"{log_prefix} [SIDEWAYS FILTER] BLOCKED — "
                 f"EMA distance ({ema_distance:.5f}) < "
-                f"ATR×{self.config['sideways_atr_threshold']} threshold ({sideways_threshold:.5f}). "
+                f"ATR threshold ({sideways_threshold:.5f}). "
                 f"Market is sideways. No trade."
             )
             _status["filters"]["sideways"] = {"status": "BLOCKED", "detail": f"EMA gap {ema_distance:.3f} < threshold {sideways_threshold:.3f}"}
@@ -398,10 +402,11 @@ class EMAEngulfingStrategy:
             _status["filters"]["spread"] = {"status": "PASS", "detail": "N/A"}
 
         # ── Step 10: Pullback Detection ───────────────────────────────────────
-        close_price    = float(entry_candle["close"])
-        ema_zone_mid   = (ema9 + ema15) / 2.0
-        pullback_zone  = atr * self.config["pullback_zone_atr_factor"]
-        price_to_ema   = abs(close_price - ema_zone_mid)
+        close_price         = float(entry_candle["close"])
+        ema_zone_mid        = (ema9 + ema15) / 2.0
+        pullback_factor     = 2.0 if demo_mode else self.config["pullback_zone_atr_factor"]
+        pullback_zone       = atr * pullback_factor
+        price_to_ema        = abs(close_price - ema_zone_mid)
 
         if price_to_ema > pullback_zone:
             logger.info(
@@ -413,7 +418,7 @@ class EMAEngulfingStrategy:
             _status["filters"]["pullback"] = {"status": "BLOCKED", "detail": f"Price {close_price:.2f} far from EMA zone {ema_zone_mid:.2f}"}
             _publish({**_status, "signal": "BLOCKED", "signal_reason": "Waiting for pullback"})
             return None
-        _status["filters"]["pullback"] = {"status": "PASS", "detail": f"Price {close_price:.2f} in EMA zone"}
+        _status["filters"]["pullback"] = {"status": "PASS", "detail": f"Price {close_price:.2f} in EMA zone" + (" (Demo Wide)" if demo_mode else "")}
         logger.info(
             f"{log_prefix} Pullback = PASS — "
             f"Price: {close_price:.3f} | "
@@ -425,9 +430,19 @@ class EMAEngulfingStrategy:
         if trend == "BUY":
             engulfing_detected = self._is_bullish_engulfing(prev_candle, entry_candle)
             pattern_name       = "Bullish Engulfing"
+            if not engulfing_detected and demo_mode:
+                # In Demo Mode, if entry candle closes bullish (close > open), accept for fast testing
+                if entry_candle["close"] > entry_candle["open"]:
+                    engulfing_detected = True
+                    pattern_name       = "Bullish Candle (Demo Mode)"
         else:
             engulfing_detected = self._is_bearish_engulfing(prev_candle, entry_candle)
             pattern_name       = "Bearish Engulfing"
+            if not engulfing_detected and demo_mode:
+                # In Demo Mode, if entry candle closes bearish (close < open), accept for fast testing
+                if entry_candle["close"] < entry_candle["open"]:
+                    engulfing_detected = True
+                    pattern_name       = "Bearish Candle (Demo Mode)"
 
         if not engulfing_detected:
             logger.info(

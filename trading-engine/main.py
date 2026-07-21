@@ -390,11 +390,14 @@ def run_engine():
                 active_trade_count  = len(active_trades)
                 daily_stats         = state.get("daily_stats", {})
 
+                demo_mode           = settings.get('demoMode', False) if settings else False
+
                 market_context = {
                     "spread_points":      spread_points,
                     "symbol_digits":      symbol_digits,
                     "active_trade_count": active_trade_count,
                     "current_candle_time": completed_candle_time,
+                    "demo_mode":           demo_mode,
                 }
 
                 # Call strategy through manager (engine has zero strategy logic)

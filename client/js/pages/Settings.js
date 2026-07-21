@@ -114,6 +114,24 @@ export const SettingsPage = {
             </div>
           </div>
 
+          <!-- Demo Mode Fast Testing Mode Toggle -->
+          <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 1.25rem; margin-top: 1.5rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+              <div>
+                <h5 style="margin: 0; color: #a78bfa; font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                  <i class="fa-solid fa-bolt" style="color: #f59e0b;"></i> Fast Demo Mode (Faster Trades for Testing)
+                </h5>
+                <p style="margin: 0.35rem 0 0 0; font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.4;">
+                  Relaxes pullback & pattern strictness so trades trigger faster on Demo accounts. 
+                  <strong>Turn OFF for Real trading to restore strict protection.</strong>
+                </p>
+              </div>
+              <div class="form-group" style="flex-direction: row; align-items: center; margin-bottom: 0;">
+                <input type="checkbox" id="settings-demomode" style="width: 20px; height: 20px; cursor: pointer; accent-color: #a78bfa;">
+              </div>
+            </div>
+          </div>
+
           <h4 style="margin: 1.5rem 0 1rem 0; font-weight: 600; border-top: 1px solid var(--color-border); padding-top: 1.5rem;">Telegram Integration</h4>
           
           <div class="form-group">
@@ -295,6 +313,7 @@ export const SettingsPage = {
         document.getElementById('settings-rr').value = settings.riskReward || '1:2';
         document.getElementById('settings-trailing-sl').checked = settings.trailingSL !== false;
         document.getElementById('settings-autotrading').checked = settings.isAutoTrading === true;
+        document.getElementById('settings-demomode').checked = settings.demoMode === true;
         document.getElementById('settings-telegram-token').value = settings.telegramBotToken || '';
         document.getElementById('settings-telegram-chat').value = settings.telegramChatId || '';
 
@@ -396,6 +415,7 @@ export const SettingsPage = {
       const riskReward = document.getElementById('settings-rr').value;
       const trailingSL = document.getElementById('settings-trailing-sl').checked;
       const isAutoTrading = document.getElementById('settings-autotrading').checked;
+      const demoMode = document.getElementById('settings-demomode').checked;
       
       const broker = brokerInput.value;
       const accountNumber = accountInput.value;
@@ -413,6 +433,7 @@ export const SettingsPage = {
         riskReward,
         trailingSL,
         isAutoTrading,
+        demoMode,
         broker,
         accountNumber,
         mt5Password,

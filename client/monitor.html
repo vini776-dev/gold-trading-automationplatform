@@ -284,6 +284,9 @@
     GTAP Live Monitor
   </div>
   <div class="header-right">
+    <span id="demo-badge" style="display:none; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.4); color: #f59e0b; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">
+      ⚡ FAST DEMO MODE
+    </span>
     <span id="last-update">Connecting…</span>
     <div class="live-badge"><div class="live-dot"></div> LIVE</div>
   </div>
@@ -533,6 +536,14 @@ async function poll() {
     const data = await r.json();
 
     document.getElementById('error-banner').style.display = 'none';
+
+    // Demo Mode badge
+    const demoBadge = document.getElementById('demo-badge');
+    if (data.demo_mode) {
+      demoBadge.style.display = 'inline-block';
+    } else {
+      demoBadge.style.display = 'none';
+    }
 
     // Last update time
     if (data.last_updated) {

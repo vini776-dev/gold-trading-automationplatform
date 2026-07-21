@@ -73,6 +73,10 @@ const botSettingSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    demoMode: {
+      type: Boolean,
+      default: false,
+    },
     telegramBotToken: {
       type: String,
       trim: true,
