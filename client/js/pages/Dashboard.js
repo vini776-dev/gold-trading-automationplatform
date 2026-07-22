@@ -91,14 +91,30 @@ export const DashboardPage = {
                   <th>Lot</th>
                   <th>Entry</th>
                   <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody id="active-trades-list">
                 <tr>
-                  <td colspan="5" class="shimmer skeleton-text" style="height: 3rem;"></td>
+                  <td colspan="6" class="shimmer skeleton-text" style="height: 3rem;"></td>
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard Manual Close Modal -->
+      <div id="dash-manual-close-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center;">
+        <div class="card" style="width: 400px; max-width: 90%; text-align: center; border: 1px solid var(--color-danger); padding: 2rem;">
+          <div style="font-size: 2.5rem; color: var(--color-danger); margin-bottom: 1rem;"><i class="fa-solid fa-circle-exclamation"></i></div>
+          <h3 style="margin-bottom: 0.5rem;">Close Position Manually?</h3>
+          <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
+            Are you sure you want to close trade <strong id="dash-close-modal-ticket-str">#—</strong> at current market price?
+          </p>
+          <div style="display: flex; gap: 1rem; justify-content: center;">
+            <button id="dash-close-modal-cancel-btn" class="btn" style="background: rgba(255,255,255,0.1); color: #fff;">Cancel</button>
+            <button id="dash-close-modal-confirm-btn" class="btn" style="background: var(--color-danger); color: #fff;">Yes, Close Trade</button>
           </div>
         </div>
       </div>
@@ -338,7 +354,7 @@ export const DashboardPage = {
 
         const listContainer = document.getElementById('active-trades-list');
         if (trades.length === 0) {
-          listContainer.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--color-text-secondary);">No open positions active.</td></tr>';
+          listContainer.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--color-text-secondary);">No open positions active.</td></tr>';
         } else {
           listContainer.innerHTML = trades.map((trade) => `
             <tr>
@@ -347,9 +363,63 @@ export const DashboardPage = {
               <td>${trade.lotSize.toFixed(2)}</td>
               <td>$${trade.entryPrice.toFixed(2)}</td>
               <td><span class="status-dot online" style="display: inline-block;"></span> Open</td>
+              <td>
+                <button class="btn btn-close-trade" data-ticket="${trade.mt5Ticket}" style="background: rgba(239,68,68,0.2); color: #ef4444; border: 1px solid rgba(239,68,68,0.4); padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px; cursor: pointer;">
+                  🔴 Close Trade
+                </button>
+              </td>
             </tr>
           `).join('');
         }
+
+        // Modal Action Listener
+        const dashModal = document.getElementById('dash-manual-close-modal');
+        const dashModalCancel = document.getElementById('dash-close-modal-cancel-btn');
+        const dashModalConfirm = document.getElementById('dash-close-modal-confirm-btn');
+        const dashModalTicketStr = document.getElementById('dash-close-modal-ticket-str');
+        let dashTargetTicketToClose = null;
+
+        listContainer.addEventListener('click', (e) => {
+          const closeBtn = e.target.closest('.btn-close-trade');
+          if (closeBtn) {
+            dashTargetTicketToClose = closeBtn.dataset.ticket;
+            dashModalTicketStr.innerText = `#${dashTargetTicketToClose}`;
+            dashModal.style.display = 'flex';
+          }
+        });
+
+        dashModalCancel.addEventListener('click', () => {
+          dashModal.style.display = 'none';
+          dashTargetTicketToClose = null;
+        });
+
+        dashModalConfirm.addEventListener('click', async () => {
+          if (!dashTargetTicketToClose) return;
+          dashModalConfirm.disabled = true;
+          dashModalConfirm.innerText = 'Closing...';
+
+          try {
+            const res = await API.manualCloseTrade(dashTargetTicketToClose);
+            if (res && res.success) {
+              APP.showToast(`Trade #${dashTargetTicketToClose} closed manually!`, 'success');
+            }
+          } catch (err) {
+            APP.showToast(err.message || 'Failed to close trade manually', 'error');
+          } finally {
+            dashModal.style.display = 'none';
+            dashModalConfirm.disabled = false;
+            dashModalConfirm.innerText = 'Yes, Close Trade';
+            dashTargetTicketToClose = null;
+            // Reload active positions
+            const freshActive = await API.getActiveTrades();
+            if (freshActive && freshActive.success) {
+              const freshTrades = freshActive.data;
+              if (freshTrades.length === 0) {
+                listContainer.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--color-text-secondary);">No open positions active.</td></tr>';
+              }
+            }
+          }
+        });
       }
 
       // 4. Fetch Reports (for charting)
