@@ -48,10 +48,11 @@ const closeTrade = async (tradeId, closeData) => {
   const closeTimeMs = new Date(closeTime).getTime();
   const duration = Math.max(0, Math.ceil((closeTimeMs - openTimeMs) / 1000));
 
-  // Calculate profit/loss
+  // Calculate profit/loss (use provided MT5 deal profit if passed)
   const contractSize = 100;
   const priceDiff = trade.orderType === 'BUY' ? (exitPrice - trade.entryPrice) : (trade.entryPrice - exitPrice);
-  const profitLoss = parseFloat((priceDiff * trade.lotSize * contractSize).toFixed(2));
+  const calculatedPnl = parseFloat((priceDiff * trade.lotSize * contractSize).toFixed(2));
+  const profitLoss = (closeData.profitLoss !== undefined && closeData.profitLoss !== null) ? closeData.profitLoss : calculatedPnl;
 
   trade.exitPrice = exitPrice;
   trade.closeTime = closeTime;
