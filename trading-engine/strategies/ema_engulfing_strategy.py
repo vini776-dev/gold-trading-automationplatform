@@ -309,8 +309,12 @@ class EMAEngulfingStrategy:
         )
 
         # ── Step 4: Session Filter ────────────────────────────────────────────
+        # In demo mode, skip session filter to allow testing at any time
         current_candle_time = market_context.get("current_candle_time", 0)
-        if current_candle_time > 0 and not self._is_in_session(current_candle_time):
+        if demo_mode:
+            _status["filters"]["session"] = {"status": "PASS", "detail": "Demo mode — session filter skipped"}
+            logger.info(f"{log_prefix} [SESSION FILTER] PASS (Demo Mode — all sessions allowed)")
+        elif current_candle_time > 0 and not self._is_in_session(current_candle_time):
             logger.info(
                 f"{log_prefix} [SESSION FILTER] BLOCKED — "
                 f"Outside allowed trading sessions (London / New York). No trade."
@@ -318,7 +322,8 @@ class EMAEngulfingStrategy:
             _status["filters"]["session"] = {"status": "BLOCKED", "detail": "Outside London/NY session"}
             _publish({**_status, "signal": "BLOCKED", "signal_reason": "Outside session"})
             return None
-        _status["filters"]["session"] = {"status": "PASS", "detail": "London or NY session active"}
+        else:
+            _status["filters"]["session"] = {"status": "PASS", "detail": "London or NY session active"}
         logger.info(f"{log_prefix} Session Filter = PASS")
 
         # ── Step 5: Position Management ───────────────────────────────────────
