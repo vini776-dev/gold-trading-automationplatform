@@ -409,7 +409,7 @@ class EMAEngulfingStrategy:
         # ── Step 10: Pullback Detection ───────────────────────────────────────
         close_price         = float(entry_candle["close"])
         ema_zone_mid        = (ema9 + ema15) / 2.0
-        pullback_factor     = 2.0 if demo_mode else self.config["pullback_zone_atr_factor"]
+        pullback_factor     = 3.5 if demo_mode else self.config["pullback_zone_atr_factor"]
         pullback_zone       = atr * pullback_factor
         price_to_ema        = abs(close_price - ema_zone_mid)
 
