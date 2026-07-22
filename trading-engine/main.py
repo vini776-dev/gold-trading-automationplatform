@@ -424,10 +424,6 @@ def run_engine():
                 state["last_processed_candle_time"] = completed_candle_time
                 save_state(state)
 
-            # ── Sync MT5 Account Trade History to GTAP Database ─────────────
-            import sync_mt5_history
-            sync_mt5_history.sync_mt5_history_deals()
-
             # ── Monitor Active Positions (SL/TP Exits) ───────────────────────
             active_trades = node_client.get_active_trades()
             close_events  = execution.monitor_active_trades(active_trades, settings)
