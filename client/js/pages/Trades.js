@@ -190,30 +190,6 @@ export const TradesPage = {
     }
   },
 
-      // 2. Fetch Trade History
-      await TradesPage.loadHistory();
-
-      // Bind Pagination Actions
-      const prevBtn = document.getElementById('history-prev-btn');
-      const nextBtn = document.getElementById('history-next-btn');
-
-      prevBtn.addEventListener('click', async () => {
-        if (currentPage > 1) {
-          currentPage -= 1;
-          await TradesPage.loadHistory();
-        }
-      });
-
-      nextBtn.addEventListener('click', async () => {
-        currentPage += 1;
-        await TradesPage.loadHistory();
-      });
-
-    } catch (error) {
-      console.error('Failed to load Trades Page:', error);
-    }
-  },
-
   loadHistory: async () => {
     const listContainer = document.getElementById('page-history-trades-list');
     listContainer.innerHTML = '<tr><td colspan="11" class="shimmer skeleton-text" style="height: 3rem;"></td></tr>';
