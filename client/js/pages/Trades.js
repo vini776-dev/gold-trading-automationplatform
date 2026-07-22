@@ -155,14 +155,15 @@ export const TradesPage = {
             const durationSecs = (trade.duration || 0) % 60;
             const durationStr = `${durationMins}m ${durationSecs}s`;
 
-            // Format open and close times (IST)
+            // Format open and close times
             const fmtTime = (iso) => {
               if (!iso) return '—';
               const d = new Date(iso);
+              if (isNaN(d.getTime())) return '—';
               return d.toLocaleString('en-IN', {
                 day: '2-digit', month: 'short', year: 'numeric',
                 hour: '2-digit', minute: '2-digit', second: '2-digit',
-                hour12: true, timeZone: 'Asia/Kolkata'
+                hour12: true
               });
             };
 

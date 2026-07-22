@@ -302,20 +302,18 @@ def fetch_close_details(ticket: int) -> dict | None:
     Query MT5 deal history to retrieve closing details for a trade.
 
     Args:
-        ticket (int): MT5 order ticket number.
+        ticket (int): MT5 position ticket number.
 
     Returns:
         dict: Close details (exitPrice, closeTime, closeReason, profitLoss, duration).
         None: If no history found.
     """
-    now         = int(time.time())
-    from_date   = now - 24 * 60 * 60   # Last 24 hours
+    now       = int(time.time())
+    from_date = now - 7 * 24 * 60 * 60   # Last 7 days
 
-    history_deals = mt5.history_deals_get(from_date, now + 60, ticket=ticket)
-
+    history_deals = mt5.history_deals_get(position=ticket)
     if not history_deals:
-        # Extend search range if trade is older than 24 hours
-        history_deals = mt5.history_deals_get(ticket=ticket)
+        history_deals = mt5.history_deals_get(from_date, now + 3600, position=ticket)
 
     if not history_deals:
         logger.warning(f"[Execution] No deal history found for ticket {ticket}.")
