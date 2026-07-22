@@ -461,7 +461,7 @@ class EMAEngulfingStrategy:
             return None
         _status["filters"]["engulfing"] = {"status": "PASS", "detail": pattern_name + " detected"}
         logger.info(
-            f"{log_prefix} {pattern_name} = TRUE ✅ | "
+            f"{log_prefix} {pattern_name} = TRUE [CONFIRMED] | "
             f"Prev O/C: {prev_candle['open']:.3f}/{prev_candle['close']:.3f} | "
             f"Curr O/C: {entry_candle['open']:.3f}/{entry_candle['close']:.3f}"
         )

@@ -137,18 +137,20 @@ def execute_order(signal_data: dict, settings: dict):
         }
 
     # ── 5. Send Real Order to MT5 ─────────────────────────────────────────────
-    # Detect supported filling mode from symbol info
+    mt5.symbol_select(resolved_symbol, True)
     sym = mt5.symbol_info(resolved_symbol)
+    digits = getattr(sym, 'digits', 2) if sym else 2
+    price  = round(price, digits)
+    sl     = round(sl, digits)
+    tp     = round(tp, digits)
+
     filling_modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
-    
     if sym:
         fm = getattr(sym, 'filling_mode', 0)
-        # 1 = FOK, 2 = IOC, 4 = RETURN (bitmask)
         preferred = []
         if fm & 2: preferred.append(mt5.ORDER_FILLING_IOC)
         if fm & 1: preferred.append(mt5.ORDER_FILLING_FOK)
         preferred.append(mt5.ORDER_FILLING_RETURN)
-        # Put preferred first, then remaining
         filling_modes = preferred + [m for m in filling_modes if m not in preferred]
 
     result = None
@@ -163,7 +165,7 @@ def execute_order(signal_data: dict, settings: dict):
             "tp":           tp,
             "deviation":    20,
             "magic":        123456,
-            "comment":      f"GTAP {direction} | {signal_reason[:20]}",
+            "comment":      f"GTAP {direction}",
             "type_time":    mt5.ORDER_TIME_GTC,
             "type_filling": fill_type,
         }
