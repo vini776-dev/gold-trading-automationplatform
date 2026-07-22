@@ -9,6 +9,7 @@ const router = express.Router();
 router.use(authenticate);
 
 router.post('/', validateCreateTrade, tradeController.handleCreateTrade);
+router.post('/close-manual', tradeController.handleManualCloseTrade);
 router.put('/:id/close', validateCloseTrade, tradeController.handleCloseTrade);
 router.get('/active', tradeController.handleGetActiveTrades);
 router.get('/history', tradeController.handleGetTradeHistory);

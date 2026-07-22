@@ -46,8 +46,32 @@ class EngineAPIHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/test-connection':
             self._handle_test_connection()
+        elif self.path == '/close-trade':
+            self._handle_manual_close()
         else:
             self.send_json(404, {'success': False, 'error': 'Not found'})
+
+    def _handle_manual_close(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            payload = json.loads(body) if body else {}
+            ticket = payload.get('ticket')
+
+            if not ticket:
+                self.send_json(400, {'success': False, 'error': 'Ticket parameter is required'})
+                return
+
+            import execution
+            close_details = execution.close_position_by_ticket(int(ticket))
+
+            if close_details:
+                self.send_json(200, {'success': True, 'data': close_details})
+            else:
+                self.send_json(400, {'success': False, 'error': f'Position {ticket} not found or failed to close on MT5'})
+        except Exception as e:
+            logger.error(f"[EngineAPI] Error handling manual close: {e}")
+            self.send_json(500, {'success': False, 'error': str(e)})
 
     def do_GET(self):
         if self.path == '/health':

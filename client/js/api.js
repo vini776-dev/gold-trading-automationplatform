@@ -50,6 +50,7 @@ export const API = {
   // Trades
   getActiveTrades: () => request('/trades/active', { method: 'GET' }),
   getTradeHistory: (page = 1, limit = 20) => request(`/trades/history?page=${page}&limit=${limit}`, { method: 'GET' }),
+  manualCloseTrade: (ticket) => request('/trades/close-manual', { method: 'POST', body: { ticket } }),
 
   // Settings
   getSettings: () => request('/settings', { method: 'GET' }),

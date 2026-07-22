@@ -358,6 +358,108 @@ def fetch_close_details(ticket: int) -> dict | None:
 # UTILITY FUNCTIONS
 # ─────────────────────────────────────────────────────────────────────────────
 
+def close_position_by_ticket(ticket: int) -> dict | None:
+    """
+    Manually close an active MT5 position by its order/position ticket number.
+    """
+    if config.DRY_RUN:
+        logger.info(f"[Execution][DRY_RUN] Manual close requested for mock ticket {ticket}.")
+        return {
+            "exitPrice": 2325.0,
+            "closeTime": _new_date_iso(),
+            "closeReason": "MANUAL",
+            "profitLoss": 10.0,
+            "duration": 60
+        }
+
+    if not mt5.initialize():
+        logger.error("[Execution] MT5 not initialized for manual close.")
+        return None
+
+    positions = mt5.positions_get(ticket=ticket)
+    if not positions:
+        # Check if position ticket matches via loop
+        all_positions = mt5.positions_get()
+        if all_positions:
+            positions = [p for p in all_positions if p.ticket == ticket]
+
+    if not positions:
+        logger.warning(f"[Execution] Position {ticket} not found on MT5. It may already be closed.")
+        return None
+
+    pos = positions[0]
+    symbol = pos.symbol
+    mt5.symbol_select(symbol, True)
+    sym_info = mt5.symbol_info(symbol)
+    digits = getattr(sym_info, 'digits', 2) if sym_info else 2
+    tick = mt5.symbol_info_tick(symbol)
+
+    if not tick:
+        logger.error(f"[Execution] Could not fetch tick for {symbol} to close ticket {ticket}.")
+        return None
+
+    # Opposing order to close position
+    order_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+    price = tick.bid if pos.type == mt5.POSITION_TYPE_BUY else tick.ask
+    price = round(price, digits)
+
+    filling_modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
+    if sym_info:
+        fm = getattr(sym_info, 'filling_mode', 0)
+        preferred = []
+        if fm & 2: preferred.append(mt5.ORDER_FILLING_IOC)
+        if fm & 1: preferred.append(mt5.ORDER_FILLING_FOK)
+        preferred.append(mt5.ORDER_FILLING_RETURN)
+        filling_modes = preferred + [m for m in filling_modes if m not in preferred]
+
+    result = None
+    for fill_type in filling_modes:
+        request = {
+            "action":       mt5.TRADE_ACTION_DEAL,
+            "position":     ticket,
+            "symbol":       symbol,
+            "volume":       pos.volume,
+            "type":         order_type,
+            "price":        price,
+            "deviation":    20,
+            "magic":        123456,
+            "comment":      "GTAP Manual Close",
+            "type_time":    mt5.ORDER_TIME_GTC,
+            "type_filling": fill_type,
+        }
+        res = mt5.order_send(request)
+        if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+            result = res
+            break
+
+    if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
+        err_code = result.retcode if result else "N/A"
+        err_comm = result.comment if result else "No result"
+        logger.error(f"[Execution] Failed to manually close ticket {ticket}. Code: {err_code} | Comment: {err_comm}")
+        return None
+
+    direction_str = "BUY" if pos.type == mt5.POSITION_TYPE_BUY else "SELL"
+    close_price = round(float(result.price), digits)
+    pnl = round(float(result.profit), 2)
+    open_time_unix = getattr(pos, 'time', 0)
+    close_time_unix = int(time.time())
+    duration = int(close_time_unix - open_time_unix) if open_time_unix > 0 else 0
+
+    logger.info(
+        f"[MANUAL CLOSE] Ticket: {ticket} | Symbol: {symbol} | Direction: {direction_str} | "
+        f"Entry Price: {pos.price_open:.2f} | Close Price: {close_price:.2f} | "
+        f"Profit: ${pnl:+.2f} | Closed By: User | Reason: Manual Close"
+    )
+
+    return {
+        "exitPrice":   close_price,
+        "closeTime":   _time_to_iso(close_time_unix),
+        "closeReason": "MANUAL",
+        "profitLoss":  pnl,
+        "duration":    duration
+    }
+
+
 def _time_to_iso(timestamp: int) -> str:
     """Convert a Unix timestamp to ISO 8601 UTC string."""
     return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(timestamp))

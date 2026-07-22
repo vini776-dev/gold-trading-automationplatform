@@ -90,9 +90,43 @@ const getTradeHistory = async (userId, page = 1, limit = 20) => {
   };
 };
 
+const axios = require('axios');
+
+const manualCloseTrade = async (userId, ticket) => {
+  const trade = await Trade.findOne({ mt5Ticket: ticket, userId });
+  if (!trade) {
+    throw new Error(`Trade #${ticket} not found in database`);
+  }
+
+  if (trade.status === 'CLOSED') {
+    return trade;
+  }
+
+  // Call Python Trading Engine API on port 5001
+  const engineUrl = process.env.PYTHON_ENGINE_URL || 'http://localhost:5001';
+  let closeDetails = null;
+
+  try {
+    const response = await axios.post(`${engineUrl}/close-trade`, { ticket: Number(ticket) }, { timeout: 15000 });
+    if (response.data && response.data.success) {
+      closeDetails = response.data.data;
+    }
+  } catch (err) {
+    console.error(`[ManualClose] Python Engine HTTP error:`, err.response ? err.response.data : err.message);
+    throw new Error(err.response?.data?.error || `Failed to close position #${ticket} on MetaTrader 5`);
+  }
+
+  if (!closeDetails) {
+    throw new Error(`Engine returned no close details for ticket #${ticket}`);
+  }
+
+  return await closeTrade(trade._id, closeDetails);
+};
+
 module.exports = {
   createTrade,
   closeTrade,
+  manualCloseTrade,
   getActiveTrades,
   getTradeHistory,
 };

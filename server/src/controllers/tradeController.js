@@ -95,9 +95,42 @@ const handleGetTradeHistory = async (req, res) => {
   }
 };
 
+const handleManualCloseTrade = async (req, res) => {
+  try {
+    const { ticket } = req.body;
+    if (!ticket) {
+      return res.status(400).json({ success: false, message: 'Ticket number is required' });
+    }
+
+    const trade = await tradeService.manualCloseTrade(req.user._id, ticket);
+
+    // Emit Socket.IO event to frontend
+    emitUserEvent(req.user._id, 'trade_closed', trade);
+
+    // Async Send Telegram Notification
+    const sign = trade.profitLoss >= 0 ? '+' : '';
+    const message = `🔴 [GTAP] MANUAL CLOSE\nTicket: #${trade.mt5Ticket}\nType: ${trade.orderType}\nExit Price: ${trade.exitPrice}\nProfit/Loss: ${sign}$${trade.profitLoss}\nReason: MANUAL`;
+    sendTelegramNotification(message);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Trade closed manually successfully',
+      data: trade,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      status: 'ERROR',
+      code: 'MANUAL_CLOSE_FAILED',
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   handleCreateTrade,
   handleCloseTrade,
+  handleManualCloseTrade,
   handleGetActiveTrades,
   handleGetTradeHistory,
 };
