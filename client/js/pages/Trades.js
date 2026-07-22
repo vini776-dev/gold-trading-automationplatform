@@ -46,13 +46,15 @@ export const TradesPage = {
                 <th>Entry</th>
                 <th>Exit</th>
                 <th>P&L ($)</th>
+                <th>Open Time</th>
+                <th>Close Time</th>
                 <th>Close Reason</th>
                 <th>Duration</th>
               </tr>
             </thead>
             <tbody id="page-history-trades-list">
               <tr>
-                <td colspan="9" class="shimmer skeleton-text" style="height: 3rem;"></td>
+                <td colspan="11" class="shimmer skeleton-text" style="height: 3rem;"></td>
               </tr>
             </tbody>
           </table>
@@ -124,7 +126,7 @@ export const TradesPage = {
 
   loadHistory: async () => {
     const listContainer = document.getElementById('page-history-trades-list');
-    listContainer.innerHTML = '<tr><td colspan="9" class="shimmer skeleton-text" style="height: 3rem;"></td></tr>';
+    listContainer.innerHTML = '<tr><td colspan="11" class="shimmer skeleton-text" style="height: 3rem;"></td></tr>';
 
     try {
       const historyRes = await API.getTradeHistory(currentPage, limit);
@@ -141,7 +143,7 @@ export const TradesPage = {
         nextBtn.disabled = currentPage * limit >= total;
 
         if (data.length === 0) {
-          listContainer.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--color-text-secondary);">No trade history recorded yet.</td></tr>';
+          listContainer.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--color-text-secondary);">No trade history recorded yet.</td></tr>';
         } else {
           listContainer.innerHTML = data.map((trade) => {
             const pnl = trade.profitLoss || 0;
@@ -149,9 +151,20 @@ export const TradesPage = {
             const pnlSign = pnl >= 0 ? '+' : '';
             
             // Format duration
-            const durationMins = Math.floor(trade.duration / 60);
-            const durationSecs = trade.duration % 60;
+            const durationMins = Math.floor((trade.duration || 0) / 60);
+            const durationSecs = (trade.duration || 0) % 60;
             const durationStr = `${durationMins}m ${durationSecs}s`;
+
+            // Format open and close times (IST)
+            const fmtTime = (iso) => {
+              if (!iso) return '—';
+              const d = new Date(iso);
+              return d.toLocaleString('en-IN', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour12: true, timeZone: 'Asia/Kolkata'
+              });
+            };
 
             return `
               <tr>
@@ -162,6 +175,8 @@ export const TradesPage = {
                 <td>$${trade.entryPrice.toFixed(2)}</td>
                 <td>$${(trade.exitPrice || 0).toFixed(2)}</td>
                 <td style="color: ${pnlColor}; font-weight: 600;">${pnlSign}$${pnl.toFixed(2)}</td>
+                <td style="font-size: 0.78rem; color: var(--color-text-secondary);">${fmtTime(trade.openTime)}</td>
+                <td style="font-size: 0.78rem; color: var(--color-text-secondary);">${fmtTime(trade.closeTime)}</td>
                 <td><span style="font-weight: 500;">${trade.closeReason || 'Manual'}</span></td>
                 <td>${durationStr}</td>
               </tr>
@@ -171,7 +186,7 @@ export const TradesPage = {
       }
     } catch (err) {
       console.error('Failed to load history batch:', err);
-      listContainer.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--color-danger);">Failed to load history data.</td></tr>';
+      listContainer.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--color-danger);">Failed to load history data.</td></tr>';
     }
   }
 };
