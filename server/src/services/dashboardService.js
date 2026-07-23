@@ -9,13 +9,25 @@ const getDashboardSummary = async (userId) => {
   // Get active MT5 account info for real-time account metrics
   const account = await MT5Account.findOne({ userId, isDefault: true });
 
+  // Calculate Today's Profit directly from DB closed trades for today
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+  const todayClosedTrades = await Trade.find({
+    userId,
+    status: 'CLOSED',
+    closeTime: { $gte: startOfDay }
+  });
+
+  const dailyProfit = todayClosedTrades.reduce((sum, t) => sum + (t.profitLoss || 0), 0);
+
   return {
     balance: account ? account.balance : 0.0,
     equity: account ? account.equity : 0.0,
     marginFree: account ? account.marginFree : 0.0,
     marginLevel: account ? account.marginLevel : 0.0,
     floatingPnL: account ? account.floatingPnL : 0.0,
-    dailyProfit: account ? account.todayProfit : 0.0,
+    dailyProfit: Number(dailyProfit.toFixed(2)),
     activeTradesCount: account ? account.openPositions : 0,
     winRate: latestReport ? latestReport.winRate : 0.0,
     drawdown: latestReport ? latestReport.drawdown : 0.0,

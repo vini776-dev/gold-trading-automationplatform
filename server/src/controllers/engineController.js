@@ -213,13 +213,25 @@ const handleHeartbeat = async (req, res) => {
       settings.engineCommand = 'NONE';
     }
 
+    // Calculate Today's Profit directly from DB closed trades for today
+    const Trade = require('../models/Trade');
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+    const todayClosedTrades = await Trade.find({
+      userId: req.user._id,
+      status: 'CLOSED',
+      closeTime: { $gte: startOfDay }
+    });
+
+    const todayProfitSum = todayClosedTrades.reduce((sum, t) => sum + (t.profitLoss || 0), 0);
+
     // Update live metrics from Python
-    if (metrics) {
-      settings.engineMetrics = {
-        ...settings.engineMetrics,
-        ...metrics
-      };
-    }
+    settings.engineMetrics = {
+      ...settings.engineMetrics,
+      ...(metrics || {}),
+      todayProfit: Number(todayProfitSum.toFixed(2))
+    };
 
     await settings.save();
 
