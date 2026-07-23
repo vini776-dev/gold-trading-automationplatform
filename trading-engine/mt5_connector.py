@@ -127,6 +127,7 @@ def resolve_symbol(symbol):
         try:
             info = mt5.symbol_info(symbol)
             if info is not None:
+                mt5.symbol_select(symbol, True)
                 _symbol_cache[symbol] = symbol
                 return symbol
         except Exception:
@@ -139,6 +140,7 @@ def resolve_symbol(symbol):
                 try:
                     info = mt5.symbol_info(alt)
                     if info is not None:
+                        mt5.symbol_select(alt, True)
                         logger.info(f"Symbol mapper: Mapping XAUUSD -> {alt} (supported by broker)")
                         _symbol_cache[symbol] = alt
                         return alt

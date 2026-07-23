@@ -164,19 +164,27 @@ export const ReportsPage = {
         runBtn.disabled = true;
         runBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right: 0.4rem;"></i> Simulating...';
 
-        const res = await API.runBacktest({
-          symbol: 'XAUUSD',
-          period,
-          initial_balance,
-          lot_size,
-          risk_reward
-        });
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Simulation request timed out. Please try again.')), 10000)
+        );
+
+        const res = await Promise.race([
+          API.runBacktest({
+            symbol: 'XAUUSD',
+            period,
+            initial_balance,
+            lot_size,
+            risk_reward
+          }),
+          timeoutPromise
+        ]);
 
         if (res && res.success) {
           APP.showToast(`Backtest completed! Net Profit: $${res.data.netProfit}`, 'success');
           await ReportsPage.loadReports();
         }
       } catch (err) {
+        console.error('[Reports] Backtest error:', err);
         APP.showToast(err.message || 'Backtest simulation failed', 'error');
       } finally {
         runBtn.disabled = false;
