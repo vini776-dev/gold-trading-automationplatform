@@ -111,6 +111,20 @@ class StrategyManager:
         """
         return self._strategy.check_signals(rates, market_context, daily_stats)
 
+    def evaluate(self, rates: list, settings_or_context: dict, daily_stats: dict) -> dict | None:
+        """Alias method for get_signal to support evaluation with settings or market_context."""
+        if "spread_points" in settings_or_context:
+            context = settings_or_context
+        else:
+            context = {
+                "spread_points": 15,
+                "symbol_digits": 2,
+                "active_trade_count": 0,
+                "current_candle_time": rates[-1]["time"] if rates else 0,
+                "demo_mode": settings_or_context.get("demoMode", True)
+            }
+        return self.get_signal(rates, context, daily_stats)
+
     def get_strategy_name(self) -> str:
         """Return the human-readable display name of the active strategy."""
         return self._strategy.config.get("strategy_name", self._strategy_key)

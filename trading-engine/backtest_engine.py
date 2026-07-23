@@ -190,9 +190,16 @@ def run_backtest(params: dict) -> dict:
 
         # B. If no active trade, evaluate strategy
         if not active_trade:
-            # Construct bar slice for strategy
+            # Construct bar slice & market context for strategy
             window_slice = processed_bars[max(0, i - 100):i + 1]
-            signal = strategy_mgr.evaluate(window_slice, settings, daily_stats)
+            market_ctx = {
+                "spread_points": 15,
+                "symbol_digits": 2,
+                "active_trade_count": 0,
+                "current_candle_time": bar_time,
+                "demo_mode": demo_mode
+            }
+            signal = strategy_mgr.get_signal(window_slice, market_ctx, daily_stats) or {}
 
             if signal.get("direction") in ("BUY", "SELL"):
                 direction = signal["direction"]
