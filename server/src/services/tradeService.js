@@ -63,24 +63,6 @@ const closeTrade = async (tradeId, closeData) => {
 
   await trade.save();
 
-  // Recalculate today's total profit for this user
-  const MT5Account = require('../models/MT5Account');
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const todayClosedTrades = await Trade.find({
-    userId: trade.userId,
-    status: 'CLOSED',
-    closeTime: { $gte: startOfDay }
-  });
-
-  const todayProfitSum = todayClosedTrades.reduce((sum, t) => sum + (t.profitLoss || 0), 0);
-
-  await MT5Account.findOneAndUpdate(
-    { userId: trade.userId, isDefault: true },
-    { todayProfit: Number(todayProfitSum.toFixed(2)) }
-  );
-
   // Dynamically update user daily performance report
   await reportService.updateDailyReport(trade.userId, closeTime);
 
