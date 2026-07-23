@@ -38,8 +38,9 @@ def sync_mt5_history_deals():
             if not in_deal:
                 continue
 
+            import execution
             direction = "BUY" if in_deal.type == mt5.ORDER_TYPE_BUY else "SELL"
-            open_iso  = datetime.fromtimestamp(in_deal.time, tz=timezone.utc).isoformat()
+            open_iso  = execution._time_to_iso(in_deal.time)
             
             sl_val = getattr(in_deal, 'sl', 0.0) or round(float(in_deal.price) * 0.99, 2)
             tp_val = getattr(in_deal, 'tp', 0.0) or round(float(in_deal.price) * 1.01, 2)
@@ -66,7 +67,7 @@ def sync_mt5_history_deals():
             # If deal is closed, sync/update close info in GTAP DB ONLY if not already closed
             if out_deal and created_trade and created_trade.get("status") != "CLOSED":
                 trade_id = created_trade.get("_id")
-                close_iso = datetime.fromtimestamp(out_deal.time, tz=timezone.utc).isoformat()
+                close_iso = execution._time_to_iso(out_deal.time)
                 close_reason = "TP" if out_deal.profit > 0 else ("SL" if out_deal.profit < 0 else "Manual")
                 
                 close_payload = {

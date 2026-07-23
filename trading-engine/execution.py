@@ -460,9 +460,22 @@ def close_position_by_ticket(ticket: int) -> dict | None:
     }
 
 
+def get_broker_offset_seconds() -> int:
+    """Calculates XM MT5 broker server offset (typically +10800s = 3 hours EET)."""
+    try:
+        tick = mt5.symbol_info_tick("GOLD.i#") or mt5.symbol_info_tick("XAUUSD")
+        if tick and tick.time > 0:
+            offset = tick.time - int(time.time())
+            return int(round(offset / 1800.0) * 1800)
+    except Exception:
+        pass
+    return 10800
+
 def _time_to_iso(timestamp: int) -> str:
-    """Convert a Unix timestamp to ISO 8601 UTC string."""
-    return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(timestamp))
+    """Convert an MT5 broker Unix timestamp to true ISO 8601 UTC string."""
+    offset = get_broker_offset_seconds()
+    true_utc_timestamp = timestamp - offset
+    return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(true_utc_timestamp))
 
 
 def _new_date_iso() -> str:
