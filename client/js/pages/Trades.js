@@ -213,8 +213,15 @@ export const TradesPage = {
         } else {
           listContainer.innerHTML = data.map((trade) => {
             const pnl = trade.profitLoss || 0;
-            const pnlColor = pnl >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
-            const pnlSign = pnl >= 0 ? '+' : '';
+            let pnlStr = `$0.00`;
+            let pnlColor = 'var(--color-text-secondary)';
+            if (pnl > 0) {
+              pnlStr = `+$${pnl.toFixed(2)}`;
+              pnlColor = 'var(--color-success)';
+            } else if (pnl < 0) {
+              pnlStr = `-$${Math.abs(pnl).toFixed(2)}`;
+              pnlColor = 'var(--color-danger)';
+            }
             
             // Format duration
             const durationMins = Math.floor((trade.duration || 0) / 60);
@@ -241,7 +248,7 @@ export const TradesPage = {
                 <td>${trade.lotSize.toFixed(2)}</td>
                 <td>$${trade.entryPrice.toFixed(2)}</td>
                 <td>$${(trade.exitPrice || 0).toFixed(2)}</td>
-                <td style="color: ${pnlColor}; font-weight: 600;">${pnlSign}$${pnl.toFixed(2)}</td>
+                <td style="color: ${pnlColor}; font-weight: 600;">${pnlStr}</td>
                 <td style="font-size: 0.78rem; color: var(--color-text-secondary);">${fmtTime(trade.openTime)}</td>
                 <td style="font-size: 0.78rem; color: var(--color-text-secondary);">${fmtTime(trade.closeTime)}</td>
                 <td><span style="font-weight: 500;">${trade.closeReason || 'Manual'}</span></td>

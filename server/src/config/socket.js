@@ -75,10 +75,21 @@ const initSocket = (server) => {
       try {
         const BotSetting = require('../models/BotSetting');
         const MT5Account = require('../models/MT5Account');
+        const Trade = require('../models/Trade');
         const settings = await BotSetting.findOne({ userId });
         if (settings) {
           const account = await MT5Account.findById(settings.activeAccountId);
           const isOnline = Date.now() - (settings.lastHeartbeat ? settings.lastHeartbeat.getTime() : 0) < 15000;
+          
+          const now = new Date();
+          const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+          const todayClosedTrades = await Trade.find({
+            userId,
+            status: 'CLOSED',
+            closeTime: { $gte: startOfDay }
+          });
+          const dbTodayProfit = todayClosedTrades.reduce((sum, t) => sum + (t.profitLoss || 0), 0);
+
           emitUserEvent(userId, 'engine_status', {
             status: isOnline ? 'ONLINE' : 'OFFLINE',
             engineState: settings.engineState || 'OFFLINE',
@@ -92,7 +103,7 @@ const initSocket = (server) => {
               freeMargin: account ? account.marginFree : 0.0,
               marginLevel: account ? account.marginLevel : 0.0,
               floatingPnL: account ? account.floatingPnL : 0.0,
-              todayProfit: account ? account.todayProfit : 0.0,
+              todayProfit: Number(dbTodayProfit.toFixed(2)),
               openPositionsCount: account ? account.openPositions : 0
             }
           });
@@ -115,10 +126,21 @@ const initSocket = (server) => {
       try {
         const BotSetting = require('../models/BotSetting');
         const MT5Account = require('../models/MT5Account');
+        const Trade = require('../models/Trade');
         const settings = await BotSetting.findOne({});
         if (settings) {
           const account = await MT5Account.findById(settings.activeAccountId);
           const isOnline = Date.now() - (settings.lastHeartbeat ? settings.lastHeartbeat.getTime() : 0) < 15000;
+          
+          const now = new Date();
+          const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+          const todayClosedTrades = await Trade.find({
+            userId: settings.userId,
+            status: 'CLOSED',
+            closeTime: { $gte: startOfDay }
+          });
+          const dbTodayProfit = todayClosedTrades.reduce((sum, t) => sum + (t.profitLoss || 0), 0);
+
           const statusPayload = {
             status: isOnline ? 'ONLINE' : 'OFFLINE',
             engineState: settings.engineState || 'OFFLINE',
@@ -132,7 +154,7 @@ const initSocket = (server) => {
               freeMargin: account ? account.marginFree : 0.0,
               marginLevel: account ? account.marginLevel : 0.0,
               floatingPnL: account ? account.floatingPnL : 0.0,
-              todayProfit: account ? account.todayProfit : 0.0,
+              todayProfit: Number(dbTodayProfit.toFixed(2)),
               openPositionsCount: account ? account.openPositions : 0
             }
           };

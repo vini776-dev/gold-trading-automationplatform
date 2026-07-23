@@ -246,9 +246,16 @@ export const DashboardPage = {
       }
       if (profitEl && metrics.todayProfit !== undefined) {
         const tp = parseFloat(metrics.todayProfit);
-        const profitSign = tp >= 0 ? '+' : '';
-        const profitColor = tp >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
-        profitEl.innerHTML = `<h3>Today's Profit</h3><div class="value" style="color: ${profitColor};">${profitSign}$${tp.toFixed(2)}</div>`;
+        let profitStr = `$0.00`;
+        let profitColor = 'var(--color-text-primary)';
+        if (tp > 0) {
+          profitStr = `+$${tp.toFixed(2)}`;
+          profitColor = 'var(--color-success)';
+        } else if (tp < 0) {
+          profitStr = `-$${Math.abs(tp).toFixed(2)}`;
+          profitColor = 'var(--color-danger)';
+        }
+        profitEl.innerHTML = `<h3>Today's Profit</h3><div class="value" style="color: ${profitColor};">${profitStr}</div>`;
       }
     };
 
@@ -339,9 +346,17 @@ export const DashboardPage = {
         document.getElementById('card-balance').innerHTML = `<h3>Balance</h3><div class="value">$${metrics.balance.toFixed(2)}</div>`;
         document.getElementById('card-equity').innerHTML = `<h3>Equity</h3><div class="value">$${metrics.equity.toFixed(2)}</div>`;
         
-        const profitSign = metrics.dailyProfit >= 0 ? '+' : '';
-        const profitColor = metrics.dailyProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
-        document.getElementById('card-profit').innerHTML = `<h3>Today's Profit</h3><div class="value" style="color: ${profitColor};">${profitSign}$${metrics.dailyProfit.toFixed(2)}</div>`;
+        const dp = metrics.dailyProfit;
+        let profitStr = `$0.00`;
+        let profitColor = 'var(--color-text-primary)';
+        if (dp > 0) {
+          profitStr = `+$${dp.toFixed(2)}`;
+          profitColor = 'var(--color-success)';
+        } else if (dp < 0) {
+          profitStr = `-$${Math.abs(dp).toFixed(2)}`;
+          profitColor = 'var(--color-danger)';
+        }
+        document.getElementById('card-profit').innerHTML = `<h3>Today's Profit</h3><div class="value" style="color: ${profitColor};">${profitStr}</div>`;
         
         document.getElementById('card-winrate').innerHTML = `<h3>Win Rate</h3><div class="value">${metrics.winRate.toFixed(1)}%</div>`;
       }
