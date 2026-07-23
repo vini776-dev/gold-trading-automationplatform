@@ -289,15 +289,46 @@ def run_backtest(params: dict) -> dict:
     }
 
 
-def _calculate_indicators(rates: list) -> list:
+def _calculate_indicators(rates) -> list:
     """Calculate EMA 9, EMA 15, and ATR 14 for M5 bars."""
+    converted_rates = []
+    for r in rates:
+        if isinstance(r, dict):
+            converted_rates.append(r)
+        else:
+            try:
+                # MT5 numpy structured array format
+                names = r.dtype.names if hasattr(r, 'dtype') and r.dtype.names else ()
+                vol = int(r["tick_volume"]) if "tick_volume" in names else (int(r["volume"]) if "volume" in names else 100)
+                converted_rates.append({
+                    "time": int(r["time"]),
+                    "open": float(r["open"]),
+                    "high": float(r["high"]),
+                    "low": float(r["low"]),
+                    "close": float(r["close"]),
+                    "volume": vol,
+                })
+            except Exception:
+                # Positional tuple fallback (time, open, high, low, close, tick_volume, ...)
+                converted_rates.append({
+                    "time": int(r[0]),
+                    "open": float(r[1]),
+                    "high": float(r[2]),
+                    "low": float(r[3]),
+                    "close": float(r[4]),
+                    "volume": int(r[5]) if len(r) > 5 else 100,
+                })
+
+    if not converted_rates:
+        return []
+
     bars = []
-    ema9 = float(rates[0]["close"])
-    ema15 = float(rates[0]["close"])
+    ema9 = float(converted_rates[0]["close"])
+    ema15 = float(converted_rates[0]["close"])
     alpha9 = 2.0 / (9.0 + 1.0)
     alpha15 = 2.0 / (15.0 + 1.0)
 
-    for i, r in enumerate(rates):
+    for i, r in enumerate(converted_rates):
         c = float(r["close"])
         h = float(r["high"])
         l = float(r["low"])
