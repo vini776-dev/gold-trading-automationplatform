@@ -3,6 +3,8 @@ import { TradesPage } from './pages/Trades.js';
 import { ReportsPage } from './pages/Reports.js';
 import { SettingsPage } from './pages/Settings.js';
 import { LoginPage } from './pages/Login.js';
+import { ReplayPage } from './pages/Replay.js';
+import { BacktestComparePage } from './pages/BacktestCompare.js';
 
 const routes = {
   '/dashboard': DashboardPage,
@@ -10,11 +12,14 @@ const routes = {
   '/reports': ReportsPage,
   '/settings': SettingsPage,
   '/login': LoginPage,
+  '/replay': ReplayPage,
+  '/backtest-compare': BacktestComparePage,
 };
 
 export const Router = {
   navigate: async () => {
-    const hash = window.location.hash.slice(1) || '/dashboard';
+    let rawHash = window.location.hash.slice(1) || '/dashboard';
+    const cleanHash = rawHash.split('?')[0];
     
     // Auth Guard check
     if (!window.Store.user) {
@@ -30,11 +35,11 @@ export const Router = {
     document.getElementById('app-shell').style.display = 'flex';
 
     // Highlight active sidebar navigation link
-    updateActiveSidebarLink(hash);
+    updateActiveSidebarLink(cleanHash);
 
     // Resolve Page Component
-    const pageComponent = routes[hash] || DashboardPage;
-    const pageTitle = hash.replace('/', '').toUpperCase();
+    const pageComponent = routes[cleanHash] || DashboardPage;
+    const pageTitle = cleanHash.replace('/', '').toUpperCase().replace('-', ' ');
     document.getElementById('page-title').innerText = pageTitle;
 
     // Render page inside outlet container

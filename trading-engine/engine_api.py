@@ -48,8 +48,23 @@ class EngineAPIHandler(BaseHTTPRequestHandler):
             self._handle_test_connection()
         elif self.path == '/close-trade':
             self._handle_manual_close()
+        elif self.path == '/run-backtest':
+            self._handle_run_backtest()
         else:
             self.send_json(404, {'success': False, 'error': 'Not found'})
+
+    def _handle_run_backtest(self):
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length).decode('utf-8')
+            params = json.loads(body) if body else {}
+
+            import backtest_engine
+            report = backtest_engine.run_backtest(params)
+            self.send_json(200, {'success': True, 'data': report})
+        except Exception as e:
+            logger.error(f"[EngineAPI] Error running backtest: {e}")
+            self.send_json(500, {'success': False, 'error': str(e)})
 
     def _handle_manual_close(self):
         try:

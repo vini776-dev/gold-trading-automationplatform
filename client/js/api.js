@@ -71,4 +71,11 @@ export const API = {
   stopEngine: () => request('/engine/stop', { method: 'POST' }),
   restartEngine: () => request('/engine/restart', { method: 'POST' }),
   emergencyStop: () => request('/engine/emergency-stop', { method: 'POST' }),
+
+  // Backtest & Trade Replay
+  runBacktest: (params) => request('/backtest/run', { method: 'POST', body: params }),
+  getBacktestReports: (page = 1, limit = 20) => request(`/backtest/reports?page=${page}&limit=${limit}`, { method: 'GET' }),
+  getBacktestReportById: (id) => request(`/backtest/reports/${id}`, { method: 'GET' }),
+  compareBacktests: (ids) => request('/backtest/compare', { method: 'POST', body: { ids } }),
+  getTradeReplay: (tradeId) => request(`/backtest/replay/${tradeId}`, { method: 'GET' }),
 };

@@ -51,6 +51,7 @@ export const TradesPage = {
                 <th>Close Time</th>
                 <th>Close Reason</th>
                 <th>Duration</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="page-history-trades-list">
@@ -253,6 +254,11 @@ export const TradesPage = {
                 <td style="font-size: 0.78rem; color: var(--color-text-secondary);">${fmtTime(trade.closeTime)}</td>
                 <td><span style="font-weight: 500;">${trade.closeReason || 'Manual'}</span></td>
                 <td>${durationStr}</td>
+                <td>
+                  <a href="#/replay?tradeId=${trade._id || trade.mt5Ticket}" class="btn" style="background: rgba(59,130,246,0.15); color: #3b82f6; border: 1px solid rgba(59,130,246,0.3); padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                    <i class="fa-solid fa-film"></i> Replay
+                  </a>
+                </td>
               </tr>
             `;
           }).join('');

@@ -81,6 +81,9 @@ const tradeSchema = new mongoose.Schema(
     executionLatency: {
       type: Number, // in milliseconds
     },
+    replayData: {
+      type: mongoose.Schema.Types.Mixed,
+    },
   },
   {
     timestamps: true,

@@ -37,6 +37,7 @@ const settingRoutes = require('./routes/settingRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const logRoutes = require('./routes/logRoutes');
 const engineRoutes = require('./routes/engineRoutes');
+const backtestRoutes = require('./routes/backtestRoutes');
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
@@ -45,5 +46,6 @@ app.use('/api/v1/settings', settingRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/logs', logRoutes);
 app.use('/api/v1/engine', engineRoutes);
+app.use('/api/v1/backtest', backtestRoutes);
 
 module.exports = app;
