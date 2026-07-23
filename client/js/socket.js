@@ -34,9 +34,10 @@ export const SocketClient = {
       window.Store.activeTrades.unshift(newTrade);
       window.Store.dashboard.activeTradesCount += 1;
       
-      // Display alert and refresh current view if needed
+      // Display alert and refresh current view if on dashboard or trades
       APP.showToast(`New Trade Executed: ${newTrade.orderType} ${newTrade.symbol}`, 'success');
-      if (!window.location.hash.includes('settings')) {
+      const hash = window.location.hash || '';
+      if (hash.includes('dashboard') || hash.includes('trades')) {
         APP.refreshCurrentPage();
       }
     });
@@ -53,7 +54,8 @@ export const SocketClient = {
       window.Store.dashboard.activeTradesCount = Math.max(0, window.Store.dashboard.activeTradesCount - 1);
       
       APP.showToast(`Trade Closed: ${closedTrade.closeReason} hit! PnL: $${closedTrade.profitLoss}`, closedTrade.profitLoss >= 0 ? 'success' : 'error');
-      if (!window.location.hash.includes('settings')) {
+      const hash = window.location.hash || '';
+      if (hash.includes('dashboard') || hash.includes('trades')) {
         APP.refreshCurrentPage();
       }
     });
@@ -62,7 +64,8 @@ export const SocketClient = {
     socket.on('settings_updated', (payload) => {
       console.log('Socket event [settings_updated]:', payload);
       window.Store.settings = payload.data;
-      if (!window.location.hash.includes('settings')) {
+      const hash = window.location.hash || '';
+      if (hash.includes('dashboard') || hash.includes('trades')) {
         APP.refreshCurrentPage();
       }
     });
