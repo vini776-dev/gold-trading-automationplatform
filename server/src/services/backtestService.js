@@ -2,7 +2,7 @@ const BacktestReport = require('../models/BacktestReport');
 const Trade = require('../models/Trade');
 
 const runBacktest = async (userId, params) => {
-  const engineUrl = process.env.PYTHON_ENGINE_URL || 'http://localhost:5001';
+  const engineUrl = process.env.PYTHON_ENGINE_URL || 'http://127.0.0.1:5001';
 
   let reportData = null;
   try {

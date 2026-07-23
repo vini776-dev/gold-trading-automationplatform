@@ -101,7 +101,7 @@ const manualCloseTrade = async (userId, ticket) => {
   }
 
   // Call Python Trading Engine API on port 5001 using native fetch
-  const engineUrl = process.env.PYTHON_ENGINE_URL || 'http://localhost:5001';
+  const engineUrl = process.env.PYTHON_ENGINE_URL || 'http://127.0.0.1:5001';
   let closeDetails = null;
 
   try {
