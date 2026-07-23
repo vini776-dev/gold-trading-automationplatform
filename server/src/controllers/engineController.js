@@ -31,7 +31,8 @@ const handleStartEngine = async (req, res) => {
     const isAlreadyRunning = settings.lastHeartbeat && 
       (Date.now() - settings.lastHeartbeat.getTime() < 12000) && 
       settings.engineState !== 'OFFLINE' && 
-      settings.engineState !== 'ERROR';
+      settings.engineState !== 'ERROR' &&
+      settings.engineState !== 'PAUSED';
     if (isAlreadyRunning) {
       return res.status(400).json({ success: false, message: 'Another engine instance is already active and running.' });
     }

@@ -90,8 +90,6 @@ const getTradeHistory = async (userId, page = 1, limit = 20) => {
   };
 };
 
-const axios = require('axios');
-
 const manualCloseTrade = async (userId, ticket) => {
   const trade = await Trade.findOne({ mt5Ticket: ticket, userId });
   if (!trade) {
@@ -102,18 +100,25 @@ const manualCloseTrade = async (userId, ticket) => {
     return trade;
   }
 
-  // Call Python Trading Engine API on port 5001
+  // Call Python Trading Engine API on port 5001 using native fetch
   const engineUrl = process.env.PYTHON_ENGINE_URL || 'http://localhost:5001';
   let closeDetails = null;
 
   try {
-    const response = await axios.post(`${engineUrl}/close-trade`, { ticket: Number(ticket) }, { timeout: 15000 });
-    if (response.data && response.data.success) {
-      closeDetails = response.data.data;
+    const response = await fetch(`${engineUrl}/close-trade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticket: Number(ticket) })
+    });
+    const result = await response.json();
+    if (result && result.success) {
+      closeDetails = result.data;
+    } else {
+      throw new Error(result.error || `Failed to close position #${ticket} on MetaTrader 5`);
     }
   } catch (err) {
-    console.error(`[ManualClose] Python Engine HTTP error:`, err.response ? err.response.data : err.message);
-    throw new Error(err.response?.data?.error || `Failed to close position #${ticket} on MetaTrader 5`);
+    console.error(`[ManualClose] Python Engine HTTP error:`, err.message);
+    throw new Error(err.message || `Failed to close position #${ticket} on MetaTrader 5`);
   }
 
   if (!closeDetails) {
