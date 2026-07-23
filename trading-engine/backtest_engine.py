@@ -20,6 +20,7 @@ import config
 from logger import logger
 from strategy_manager import StrategyManager
 import execution
+import mt5_connector
 
 
 def run_backtest(params: dict) -> dict:
