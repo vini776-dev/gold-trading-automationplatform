@@ -63,14 +63,23 @@ def run_backtest(params: dict) -> dict:
     # 2. Fetch candles
     rates = None
     if not config.DRY_RUN:
-        if mt5.initialize():
-            import mt5_connector
-            resolved = mt5_connector.resolve_symbol(symbol)
-            rates = mt5.copy_rates_from_pos(resolved, mt5.TIMEFRAME_M5, 0, requested_bars)
+        try:
+            lock = mt5_connector.get_mt5_lock()
+            if lock.acquire(timeout=5):
+                try:
+                    if mt5.initialize():
+                        resolved = mt5_connector.resolve_symbol(symbol)
+                        # Fetch up to 2880 bars max (10 trading days of M5 bars for ultra-fast response)
+                        bars_to_fetch = min(requested_bars if requested_bars > 0 else 1000, 2880)
+                        rates = mt5.copy_rates_from_pos(resolved, mt5.TIMEFRAME_M5, 0, bars_to_fetch)
+                finally:
+                    lock.release()
+        except Exception as e:
+            logger.warning(f"[Backtest Engine] Could not fetch MT5 historical candles: {e}")
 
-    if rates is None or len(rates) < 100:
+    if rates is None or len(rates) < 50:
         logger.info("[Backtest Engine] Generating realistic simulated M5 bars for backtest dataset...")
-        rates = _generate_simulated_m5_rates(requested_bars if requested_bars > 0 else 2000)
+        rates = _generate_simulated_m5_rates(min(requested_bars if requested_bars > 0 else 1000, 2000))
 
     # 3. Pre-calculate technical indicators (EMA 9, EMA 15, ATR 14)
     processed_bars = _calculate_indicators(rates)

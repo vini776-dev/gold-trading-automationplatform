@@ -346,9 +346,14 @@ def run_engine():
                 symbol_digits         = 2
             else:
                 # Live: Fetch 101 M5 candles from MT5 (index 0 = forming, index -2 = last confirmed)
-                rates_array = mt5.copy_rates_from_pos(resolved_symbol, mt5.TIMEFRAME_M5, 0, 101)
+                lock = mt5_connector.get_mt5_lock()
+                rates_array = None
+                with lock:
+                    mt5.symbol_select(resolved_symbol, True)
+                    rates_array = mt5.copy_rates_from_pos(resolved_symbol, mt5.TIMEFRAME_M5, 0, 101)
+
                 if rates_array is None or len(rates_array) < 3:
-                    logger.error(f"[Engine] Failed to fetch M5 candles: {mt5.last_error()}")
+                    logger.warning(f"[Engine] Waiting for MT5 symbol {resolved_symbol} candles: {mt5.last_error()}")
                     continue
 
                 rates = [

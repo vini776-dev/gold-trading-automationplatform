@@ -102,33 +102,49 @@ def check_connection():
         return False
     return True
 
+import threading
+
+_mt5_lock = threading.Lock()
+_symbol_cache = {}
+
+def get_mt5_lock():
+    return _mt5_lock
+
 def resolve_symbol(symbol):
     """
     Check if the symbol exists on the broker.
     If not, search for alternatives (e.g. mapping XAUUSD to GOLD.i# or other names).
+    Results are cached in memory to avoid repeated MT5 IPC calls.
     """
     if not symbol:
         return symbol
     
-    # Try the requested symbol directly first
-    try:
-        info = mt5.symbol_info(symbol)
-        if info is not None:
-            return symbol
-    except Exception:
-        pass
-        
-    # If the requested symbol is XAUUSD (Gold), try known XM/broker alternatives
-    if symbol == 'XAUUSD':
-        alternatives = ['GOLD.i#', 'GOLD.m', 'GOLD', 'XAUUSD#', 'XAUUSD.m', 'XAUUSDgr', 'XAUUSD_']
-        for alt in alternatives:
-            try:
-                info = mt5.symbol_info(alt)
-                if info is not None:
-                    logger.info(f"Symbol mapper: Mapping XAUUSD -> {alt} (supported by broker)")
-                    return alt
-            except Exception:
-                pass
-                
+    if symbol in _symbol_cache:
+        return _symbol_cache[symbol]
+
+    with _mt5_lock:
+        # Try the requested symbol directly first
+        try:
+            info = mt5.symbol_info(symbol)
+            if info is not None:
+                _symbol_cache[symbol] = symbol
+                return symbol
+        except Exception:
+            pass
+            
+        # If the requested symbol is XAUUSD (Gold), try known XM/broker alternatives
+        if symbol == 'XAUUSD':
+            alternatives = ['GOLD.i#', 'GOLD.m', 'GOLD', 'XAUUSD#', 'XAUUSD.m', 'XAUUSDgr', 'XAUUSD_']
+            for alt in alternatives:
+                try:
+                    info = mt5.symbol_info(alt)
+                    if info is not None:
+                        logger.info(f"Symbol mapper: Mapping XAUUSD -> {alt} (supported by broker)")
+                        _symbol_cache[symbol] = alt
+                        return alt
+                except Exception:
+                    pass
+                    
+    _symbol_cache[symbol] = symbol
     return symbol
 
