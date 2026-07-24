@@ -180,8 +180,17 @@ export const ReportsPage = {
         ]);
 
         if (res && res.success) {
-          APP.showToast(`Backtest completed! Net Profit: $${res.data.netProfit}`, 'success');
+          const report = res.data;
+          APP.showToast(`Backtest completed! Net Profit: $${report.netProfit}`, 'success');
           await ReportsPage.loadReports();
+
+          // Requirement 5: Auto-open Trade Replay for the first trade of newly generated backtest
+          if (report && report.trades && report.trades.length > 0) {
+            const firstTradeId = report.trades[0]._id || report.trades[0].ticket;
+            setTimeout(() => {
+              window.location.hash = `#/replay?tradeId=${firstTradeId}`;
+            }, 800);
+          }
         }
       } catch (err) {
         console.error('[Reports] Backtest error:', err);
