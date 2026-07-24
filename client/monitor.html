@@ -425,6 +425,19 @@ window.addEventListener('resize', () => {
 });
 
 // ─── Fetch M5 Candles from Engine API (direct MT5 data) ──────────────────
+function calcEMA(candles, period) {
+  if (!candles || candles.length === 0) return [];
+  const k = 2 / (period + 1);
+  let ema = candles[0].close;
+  const res = [];
+  for (let i = 0; i < candles.length; i++) {
+    const val = candles[i].close;
+    ema = (i === 0) ? val : (val * k) + (ema * (1 - k));
+    res.push({ time: candles[i].time, value: parseFloat(ema.toFixed(2)) });
+  }
+  return res;
+}
+
 async function loadCandles() {
   try {
     const r = await fetch('http://127.0.0.1:5001/candles?count=120', {
@@ -432,12 +445,17 @@ async function loadCandles() {
     });
     const data = await r.json();
     if (data.success && data.candles && data.candles.length > 0) {
-      candleSeries.setData(data.candles);
-      // Fit chart to show all data on first load
+      const sortedCandles = [...data.candles].sort((a, b) => a.time - b.time);
+      candleSeries.setData(sortedCandles);
+
+      const e9Hist = calcEMA(sortedCandles, 9);
+      const e15Hist = calcEMA(sortedCandles, 15);
+      ema9Series.setData(e9Hist);
+      ema15Series.setData(e15Hist);
+
       chart.timeScale().fitContent();
     }
   } catch(e) {
-    // Candles will load on next poll if MT5 is connected
     console.warn('Candles not yet available:', e.message);
   }
 }
