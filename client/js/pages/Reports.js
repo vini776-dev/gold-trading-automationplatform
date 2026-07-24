@@ -221,7 +221,11 @@ export const ReportsPage = {
         if (res && res.success) {
           const reports = res.data;
           if (reports.length === 0) {
-            listContainer.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--color-text-secondary);">No saved backtests. Click "Run New Backtest" above to generate your first simulation report.</td></tr>';
+            document.getElementById('report-profit-factor').innerHTML = `<h3>Profit Factor</h3><div class="value" style="color: var(--color-text-secondary);">0.00</div>`;
+            document.getElementById('report-expectancy').innerHTML = `<h3>Expectancy</h3><div class="value" style="color: var(--color-text-secondary);">$0.00</div>`;
+            document.getElementById('report-avg-win').innerHTML = `<h3>Avg Win</h3><div class="value" style="color: var(--color-success);">$0.00</div>`;
+            document.getElementById('report-avg-loss').innerHTML = `<h3>Avg Loss</h3><div class="value" style="color: var(--color-danger);">$0.00</div>`;
+            listContainer.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--color-text-secondary); padding: 2rem;">No saved backtests found. Click <strong>"Run New Backtest"</strong> above to generate your first strategy simulation report.</td></tr>';
           } else {
             const latest = reports[0];
             document.getElementById('report-profit-factor').innerHTML = `<h3>Profit Factor</h3><div class="value">${(latest.profitFactor || 0).toFixed(2)}</div>`;

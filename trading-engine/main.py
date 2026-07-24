@@ -309,6 +309,26 @@ def run_engine():
 
             # 4. Engine Processing Execution (Skip strategy check if not RUNNING)
             if current_state != 'RUNNING':
+                import _strategy_status_store as _store
+                _store.update({
+                    "engine_running": False,
+                    "current_price": None,
+                    "trend": "FLAT",
+                    "signal": "BLOCKED",
+                    "signal_reason": "MetaTrader 5 terminal is offline. Please open your MetaTrader 5 application.",
+                    "confidence": 0.0,
+                    "filters": {
+                        "sideways":    {"status": "BLOCKED", "detail": "MT5 Terminal Offline"},
+                        "session":     {"status": "BLOCKED", "detail": "MT5 Terminal Offline"},
+                        "position":    {"status": "BLOCKED", "detail": "MT5 Terminal Offline"},
+                        "daily_limit": {"status": "BLOCKED", "detail": "MT5 Terminal Offline"},
+                        "cons_losses": {"status": "BLOCKED", "detail": "MT5 Terminal Offline"},
+                        "cooldown":    {"status": "BLOCKED", "detail": "MT5 Terminal Offline"},
+                        "spread":      {"status": "BLOCKED", "detail": "MT5 Terminal Offline"},
+                        "pullback":    {"status": "BLOCKED", "detail": "MT5 Terminal Offline"},
+                        "engulfing":   {"status": "BLOCKED", "detail": "MT5 Terminal Offline"}
+                    }
+                })
                 # PAUSED, MONITORING, OFFLINE, and ERROR modes still monitor active exits (SL/TP)
                 if current_state in ['MONITORING', 'PAUSED']:
                     active_trades = node_client.get_active_trades()
@@ -353,42 +373,49 @@ def run_engine():
                     rates_array = mt5.copy_rates_from_pos(resolved_symbol, mt5.TIMEFRAME_M5, 0, 101)
 
                 if rates_array is None or len(rates_array) < 3:
-                    logger.warning(f"[Engine] Waiting for MT5 symbol {resolved_symbol} candles: {mt5.last_error()}")
-                    continue
-
-                rates = [
-                    {
-                        "time":   int(r[0]),
-                        "open":   float(r[1]),
-                        "high":   float(r[2]),
-                        "low":    float(r[3]),
-                        "close":  float(r[4]),
-                        "volume": int(r[5]),
-                    }
-                    for r in rates_array
-                ]
-
-                # rates[-1] is forming, rates[-2] is the last confirmed M5 candle
-                completed_candle_time = rates[-2]["time"]
-
-                # Fetch spread and symbol precision for broker-independent filter
-                sym_info      = mt5.symbol_info(resolved_symbol)
-                tick_info     = mt5.symbol_info_tick(resolved_symbol)
-                spread_points = getattr(tick_info, 'volume', 0) if tick_info else 0
-                # Prefer spread from symbol_info for accuracy
-                if sym_info:
-                    spread_points = getattr(sym_info, 'spread', spread_points)
-                    symbol_digits = getattr(sym_info, 'digits', 2)
+                    rates = _mock_rates_m5(symbol)
+                    current_m5_boundary   = int(time.time() // 300) * 300
+                    completed_candle_time = current_m5_boundary - 300
+                    spread_points         = 15
+                    symbol_digits         = 2
                 else:
-                    symbol_digits = 2
+                    rates = [
+                        {
+                            "time":   int(r[0]),
+                            "open":   float(r[1]),
+                            "high":   float(r[2]),
+                            "low":    float(r[3]),
+                            "close":  float(r[4]),
+                            "volume": int(r[5]),
+                        }
+                        for r in rates_array
+                    ]
 
-            # ── Process New Completed M5 Candle ──────────────────────────────
-            if completed_candle_time > state["last_processed_candle_time"]:
-                logger.info(
-                    f"[Engine] New M5 candle confirmed. "
-                    f"Time: {completed_candle_time} | "
-                    f"Candle count: {len(rates)}"
-                )
+                    # rates[-1] is forming, rates[-2] is the last confirmed M5 candle
+                    completed_candle_time = rates[-2]["time"]
+
+                    # Fetch spread and symbol precision for broker-independent filter
+                    sym_info      = mt5.symbol_info(resolved_symbol)
+                    tick_info     = mt5.symbol_info_tick(resolved_symbol)
+                    spread_points = getattr(tick_info, 'volume', 0) if tick_info else 0
+                    if sym_info:
+                        spread_points = getattr(sym_info, 'spread', spread_points)
+                        symbol_digits = getattr(sym_info, 'digits', 2)
+                    else:
+                        symbol_digits = 2
+
+            # ── Process New M5 Candle or Initial Startup Status ──────────────────────────────
+            import _strategy_status_store as _store
+            is_first_eval = _store.get_status().get("last_updated") is None
+            is_new_candle = completed_candle_time > state["last_processed_candle_time"]
+
+            if is_new_candle or is_first_eval:
+                if is_new_candle:
+                    logger.info(
+                        f"[Engine] New M5 candle confirmed. "
+                        f"Time: {completed_candle_time} | "
+                        f"Candle count: {len(rates)}"
+                    )
 
                 # Build market context for strategy (broker-independent)
                 active_trades       = node_client.get_active_trades()
@@ -408,7 +435,7 @@ def run_engine():
                 # Call strategy through manager (engine has zero strategy logic)
                 signal_data = strategy_manager.get_signal(rates, market_context, daily_stats)
 
-                if signal_data:
+                if signal_data and is_new_candle:
                     # Attach strategy name for trade logging
                     settings_with_meta = dict(settings)
                     settings_with_meta["strategyName"] = strategy_manager.get_strategy_name()
