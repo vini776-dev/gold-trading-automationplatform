@@ -70,14 +70,21 @@ const closeTrade = async (tradeId, closeData) => {
 };
 
 const getActiveTrades = async (userId) => {
-  return await Trade.find({ userId, status: 'OPEN' }).sort({ openTime: -1 });
+  return await Trade.find({
+    userId: { $in: [userId, userId.toString()] },
+    status: 'OPEN'
+  }).sort({ openTime: -1 });
 };
 
 const getTradeHistory = async (userId, page = 1, limit = 20) => {
   const skip = (page - 1) * limit;
+  const filter = {
+    userId: { $in: [userId, userId.toString()] },
+    status: 'CLOSED'
+  };
 
-  const total = await Trade.countDocuments({ userId, status: 'CLOSED' });
-  const data = await Trade.find({ userId, status: 'CLOSED' })
+  const total = await Trade.countDocuments(filter);
+  const data = await Trade.find(filter)
     .sort({ closeTime: -1 })
     .skip(skip)
     .limit(limit);

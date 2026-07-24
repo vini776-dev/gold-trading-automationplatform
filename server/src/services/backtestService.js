@@ -37,8 +37,9 @@ const runBacktest = async (userId, params) => {
 
 const getBacktestReports = async (userId, page = 1, limit = 20) => {
   const skip = (page - 1) * limit;
-  const total = await BacktestReport.countDocuments({ userId });
-  const data = await BacktestReport.find({ userId })
+  const filter = { userId: { $in: [userId, userId.toString()] } };
+  const total = await BacktestReport.countDocuments(filter);
+  const data = await BacktestReport.find(filter)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
@@ -47,7 +48,8 @@ const getBacktestReports = async (userId, page = 1, limit = 20) => {
 };
 
 const getBacktestReportById = async (userId, id) => {
-  const report = await BacktestReport.findOne({ _id: id, userId });
+  const filter = { _id: id, userId: { $in: [userId, userId.toString()] } };
+  const report = await BacktestReport.findOne(filter);
   if (!report) {
     throw new Error('Backtest report not found');
   }
