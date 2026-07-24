@@ -219,7 +219,9 @@ export const ReportsPage = {
       if (activeTab === 'backtest') {
         const res = await API.getBacktestReports(1, 20);
         if (res && res.success) {
-          const reports = res.data;
+          const rawData = res.data;
+          const reports = Array.isArray(rawData) ? rawData : (rawData && Array.isArray(rawData.data) ? rawData.data : []);
+
           if (reports.length === 0) {
             document.getElementById('report-profit-factor').innerHTML = `<h3>Profit Factor</h3><div class="value" style="color: var(--color-text-secondary);">0.00</div>`;
             document.getElementById('report-expectancy').innerHTML = `<h3>Expectancy</h3><div class="value" style="color: var(--color-text-secondary);">$0.00</div>`;
@@ -228,27 +230,36 @@ export const ReportsPage = {
             listContainer.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--color-text-secondary); padding: 2rem;">No saved backtests found. Click <strong>"Run New Backtest"</strong> above to generate your first strategy simulation report.</td></tr>';
           } else {
             const latest = reports[0];
-            document.getElementById('report-profit-factor').innerHTML = `<h3>Profit Factor</h3><div class="value">${(latest.profitFactor || 0).toFixed(2)}</div>`;
+            const pfVal = Number(latest.profitFactor || 0).toFixed(2);
+            const expVal = Number(latest.expectancy || 0).toFixed(2);
+            const avgWinVal = Number(latest.averageWin || 0).toFixed(2);
+            const avgLossVal = Number(latest.averageLoss || 0).toFixed(2);
+
+            document.getElementById('report-profit-factor').innerHTML = `<h3>Profit Factor</h3><div class="value">${pfVal}</div>`;
             const expColor = (latest.expectancy || 0) >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
-            document.getElementById('report-expectancy').innerHTML = `<h3>Expectancy</h3><div class="value" style="color: ${expColor};">$${(latest.expectancy || 0).toFixed(2)}</div>`;
-            document.getElementById('report-avg-win').innerHTML = `<h3>Avg Win</h3><div class="value" style="color: var(--color-success);">$${(latest.averageWin || 0).toFixed(2)}</div>`;
-            document.getElementById('report-avg-loss').innerHTML = `<h3>Avg Loss</h3><div class="value" style="color: var(--color-danger);">$${(latest.averageLoss || 0).toFixed(2)}</div>`;
+            document.getElementById('report-expectancy').innerHTML = `<h3>Expectancy</h3><div class="value" style="color: ${expColor};">$${expVal}</div>`;
+            document.getElementById('report-avg-win').innerHTML = `<h3>Avg Win</h3><div class="value" style="color: var(--color-success);">$${avgWinVal}</div>`;
+            document.getElementById('report-avg-loss').innerHTML = `<h3>Avg Loss</h3><div class="value" style="color: var(--color-danger);">$${avgLossVal}</div>`;
 
             listContainer.innerHTML = reports.map((r) => {
-              const pnl = r.netProfit || 0;
+              const pnl = Number(r.netProfit || 0);
               const pnlColor = pnl >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
               const pnlSign = pnl >= 0 ? '+' : '';
+              const winRateNum = Number(r.winRate || 0).toFixed(1);
+              const pfNum = Number(r.profitFactor || 0).toFixed(2);
+              const ddNum = Number(r.maxDrawdown || 0).toFixed(2);
+              const dateStr = r.createdAt ? new Date(r.createdAt).toLocaleDateString() : new Date().toLocaleDateString();
 
               return `
                 <tr>
                   <td style="text-align: center;"><input type="checkbox" class="backtest-checkbox" data-id="${r._id}"></td>
-                  <td style="font-weight: 600;">${new Date(r.createdAt).toLocaleDateString()}</td>
-                  <td>${r.strategyVersion} (${r.period || '1M'})</td>
-                  <td>${r.totalTrades}</td>
-                  <td><strong style="color: #3b82f6;">${r.winRate.toFixed(1)}%</strong></td>
+                  <td style="font-weight: 600;">${dateStr}</td>
+                  <td>${r.strategyVersion || 'EMA Engulfing (V1)'} (${r.period || '1M'})</td>
+                  <td>${r.totalTrades || 0}</td>
+                  <td><strong style="color: #3b82f6;">${winRateNum}%</strong></td>
                   <td style="color: ${pnlColor}; font-weight: 600;">${pnlSign}$${pnl.toFixed(2)}</td>
-                  <td>${(r.profitFactor || 0).toFixed(2)}</td>
-                  <td>${(r.maxDrawdown || 0).toFixed(2)}%</td>
+                  <td>${pfNum}</td>
+                  <td>${ddNum}%</td>
                   <td>
                     <button class="btn btn-view-trades" data-id="${r._id}" style="background: rgba(59,130,246,0.15); color: #3b82f6; border: 1px solid rgba(59,130,246,0.3); padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px; cursor: pointer;">
                       <i class="fa-solid fa-list-check"></i> View Trades (${r.trades ? r.trades.length : 0})
